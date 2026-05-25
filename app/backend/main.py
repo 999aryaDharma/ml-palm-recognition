@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import get_settings
 from db.database import create_tables
+from services.identification import get_palm_service
 from api import health, users, identification, demos, demo_logs, debug, seed
 
 
@@ -14,8 +15,7 @@ async def lifespan(app: FastAPI):
     # Startup
     create_tables()
     app.state.settings = settings
-    app.state.detector = None
-    app.state.recognizer = None
+    app.state.palm_service = get_palm_service(settings)
     app.state.cache = None
 
     print("Backend started. DB ready.")
@@ -36,8 +36,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=False,
+    allow_origins=['http://127.0.0.1:5500', '*'],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
