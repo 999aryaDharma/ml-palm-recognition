@@ -37,15 +37,69 @@ const sampleBadge = document.getElementById("sample-count-badge");
 const sampleDots = document.querySelectorAll(".step-dot");
 const successName = document.getElementById("success-name");
 
+// ── Helper untuk debug ────────────────────────────────────
+function logDebug(msg) {
+  console.log(msg);
+  // Also write to DOM for visibility
+  const debugEl = document.getElementById("debug-log") || createDebugLog();
+  const logEntry = document.createElement("div");
+  logEntry.textContent = msg;
+  logEntry.style.fontSize = "11px";
+  logEntry.style.padding = "2px";
+  logEntry.style.borderBottom = "1px solid #ccc";
+  debugEl.appendChild(logEntry);
+  debugEl.scrollTop = debugEl.scrollHeight;
+}
+
+function createDebugLog() {
+  const el = document.createElement("div");
+  el.id = "debug-log";
+  el.style.position = "fixed";
+  el.style.bottom = "0";
+  el.style.left = "0";
+  el.style.right = "0";
+  el.style.height = "150px";
+  el.style.overflow = "auto";
+  el.style.background = "#f0f0f0";
+  el.style.border = "1px solid #999";
+  el.style.zIndex = "9999";
+  el.style.fontFamily = "monospace";
+  el.style.display = "none"; // hidden by default
+  document.body.appendChild(el);
+  return el;
+}
+
+// Show debug log when needed
+if (window.location.search.includes("debug=1")) {
+  document.addEventListener("DOMContentLoaded", () => {
+    const debugEl = document.getElementById("debug-log");
+    if (debugEl) debugEl.style.display = "block";
+  });
+}
+
 // ── Initialization ─────────────────────────────────────────
 function init() {
-  mountNavbar();
+  try {
+    logDebug("[Init] Starting...");
+    mountNavbar();
+    logDebug("[Init] Navbar mounted");
 
-  btnToCapture.addEventListener("click", startEnrollment);
-  btnCancelCapture.addEventListener("click", cancelEnrollment);
+    btnToCapture.addEventListener("click", () => {
+      logDebug("[Init] btn-to-capture clicked");
+      startEnrollment();
+    });
+    btnCancelCapture.addEventListener("click", () => {
+      logDebug("[Init] btn-cancel-capture clicked");
+      cancelEnrollment();
+    });
 
-  // Auto-focus name input
-  inputName.focus();
+    // Auto-focus name input
+    inputName.focus();
+    logDebug("[Init] Page ready");
+  } catch (err) {
+    logDebug("[Init] ERROR: " + err.message);
+    console.error("[Enrollment] Init error:", err);
+  }
 }
 
 /** Show a specific step and hide others */
@@ -69,13 +123,19 @@ async function startEnrollment() {
     btnToCapture.disabled = true;
     btnToCapture.textContent = "Mendaftarkan...";
 
+    logDebug("[startEnrollment] Creating user: " + name);
     const user = await createUser(name);
+    logDebug("[startEnrollment] User created, id=" + user.id);
     currentUserId = user.id;
     currentUserName = user.name;
 
+    logDebug("[startEnrollment] Showing capture step...");
     showStep("capture");
+    logDebug("[startEnrollment] Step changed, initializing webcam...");
     await initWebcam();
   } catch (err) {
+    logDebug("[startEnrollment] CAUGHT ERROR: " + err.message);
+    console.error("[Enrollment] Error in startEnrollment:", err);
     toast.error(err.message || "Gagal mendaftarkan user.");
     btnToCapture.disabled = false;
     btnToCapture.textContent = "Mulai Enrollment";
@@ -85,17 +145,42 @@ async function startEnrollment() {
 /** Initialize webcam and start auto-capture */
 async function initWebcam() {
   try {
+    console.log("[Enrollment] Initializing webcam...");
     webcam = new WebcamCapture(videoEl, {
       onCapture: handleCapture,
       captureInterval: 1800, // Slightly slower for feedback clarity
     });
 
+    console.log("[Enrollment] Starting webcam stream...");
     await webcam.start();
+    console.log("[Enrollment] Webcam started successfully");
+
     scannerHint.textContent = "Tunjukkan telapak tangan";
     webcam.startAutoCapture();
+    console.log("[Enrollment] Auto-capture started");
   } catch (err) {
-    toast.error("Gagal mengakses kamera: " + err.message);
-    cancelEnrollment();
+    console.error("[Enrollment] Webcam error:", err);
+    const errorMsg = err.message || "Gagal mengakses kamera";
+    toast.error("Gagal mengakses kamera: " + errorMsg);
+
+    // Show a retry button instead of auto-redirecting
+    scannerHint.textContent =
+      "❌ " + errorMsg + " — Klik 'Coba Lagi' atau 'Batal'";
+    scannerHint.style.background = "rgba(239, 68, 68, 0.2)";
+
+    // Optionally add a retry button
+    const btnRetry = document.createElement("button");
+    btnRetry.className = "btn btn--primary";
+    btnRetry.textContent = "Coba Lagi";
+    btnRetry.onclick = () => {
+      scannerHint.textContent = "Menghidupkan kamera...";
+      scannerHint.style.background = "";
+      btnRetry.remove();
+      initWebcam();
+    };
+    document.querySelector(".surface-card").appendChild(btnRetry);
+
+    // Don't call cancelEnrollment() - let user try again
   }
 }
 
@@ -179,15 +264,23 @@ function updateProgress() {
 
 /** Cancel and cleanup */
 async function cancelEnrollment() {
+  console.log(
+    "[Enrollment] Canceling enrollment, currentUserId:",
+    currentUserId,
+  );
   if (webcam) webcam.stop();
 
   // If we already created a user, delete it from backend
   if (currentUserId) {
     try {
+      console.log("[Enrollment] Deleting user", currentUserId);
       await deleteUser(currentUserId);
-    } catch (_) {}
+    } catch (err) {
+      console.error("[Enrollment] Failed to delete user:", err);
+    }
   }
 
+  console.log("[Enrollment] Redirecting to index.html");
   window.location.href = "index.html";
 }
 

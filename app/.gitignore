@@ -1,45 +1,100 @@
-# Dependencies
+# ============================================================
+# .gitignore — Palm Biometric App
+# ============================================================
+
+# ── 1. Python & Environments ──────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+.venv/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.mypy_cache/
+.tox/
+
+# ── 2. Database ───────────────────────────────────────────
+*.db
+*.db-journal
+*.sqlite3
+palm_biometric.db
+
+# ── 3. Frontend & Node ────────────────────────────────────
 node_modules/
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
-
-# Build outputs
+.npm
+.eslintcache
+.stylelintcache
 dist/
-build/
-.cache/
 out/
+.next/
+.cache/
 
-# Environment variables
+# ── 4. ML Assets & Artifacts ──────────────────────────────
+# Large datasets and raw weights should not be committed
+ml/data/
+ml/models/*.pth
+ml/artifacts/*.pt
+ml/artifacts/*.tflite
+ml/artifacts/training_logs/
+backend/ml/models/palm_recognizer.pt
+backend/ml/models/hand_landmarker.task
+
+# Keep READMEs and metadata in assets
+!ml/data/README.md
+!ml/models/README.md
+!ml/artifacts/model_card.md
+
+# ── 5. Logs & System ──────────────────────────────────────
+logs/
+*.log
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.swo
+
+# ── 6. Environment & Secrets ──────────────────────────────
 .env
 .env.local
 .env.*.local
+!.env.example
 
-# IDE
+# ── 7. IDE ────────────────────────────────────────────────
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
-.DS_Store
+*.sublime-project
+*.sublime-workspace
 
-# Logs
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# ── 8. Misc ───────────────────────────────────────────────
+.history/
+.temp/
+tmp/
 
-# OS
-.DS_Store
-Thumbs.db
+GEMINI.md
 
-# Testing
-.nyc_output/
-coverage/
-
-# Local development
-.serve/
-localhost:*
-
-docs/*
+docs/
