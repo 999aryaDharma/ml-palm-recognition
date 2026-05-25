@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>User Detail — PalmID</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/layout.css" />
+    <link rel="stylesheet" href="css/components.css" />
+    <link rel="stylesheet" href="css/pages/users.css" />
+  </head>
+
+  <body class="app-body">
+    <!-- Navbar -->
+    <header class="app-navbar" role="banner"></header>
+
+    <!-- Main -->
+    <main class="app-main">
+      <div class="container-md">
+        <div class="page-header">
+           <a href="users.html" class="btn btn--ghost btn--sm" style="margin-bottom: var(--space-4)">
+              ← Kembali ke Daftar
+           </a>
+           <div class="flex justify-between items-end">
+              <div>
+                 <p class="eyebrow">USER PROFILE</p>
+                 <h1 id="user-name-title">Memuat...</h1>
+                 <p id="user-id-subtitle">ID: #—</p>
+              </div>
+              <div class="page-header-actions" style="margin-top: 0">
+                 <button id="btn-delete-user" class="btn btn--danger">
+                    Hapus Pengguna
+                 </button>
+              </div>
+           </div>
+        </div>
+
+        <div class="demo-grid">
+           <!-- Info Side -->
+           <div class="flex flex-col gap-6">
+              <section class="surface-card">
+                 <h3 style="margin-bottom: var(--space-4)">Metadata Biometrik</h3>
+                 <div class="status-row">
+                    <span class="status-row-label">Jumlah Template</span>
+                    <span class="status-row-value" id="template-count">—</span>
+                 </div>
+                 <div class="status-row">
+                    <span class="status-row-label">Tanggal Terdaftar</span>
+                    <span class="status-row-value" id="enrolled-date">—</span>
+                 </div>
+                 <div class="status-row">
+                    <span class="status-row-label">Status Template</span>
+                    <span class="status-row-value" id="template-status">
+                       <span class="badge badge--processing">Checking...</span>
+                    </span>
+                 </div>
+              </section>
+
+              <section class="surface-card">
+                 <h3 style="margin-bottom: var(--space-4)">Aktivitas Terakhir</h3>
+                 <div id="activity-log" class="text-xs flex flex-col gap-2">
+                    <p class="text-muted">Tidak ada aktivitas terbaru.</p>
+                 </div>
+              </section>
+           </div>
+
+           <!-- Test Side -->
+           <section class="flex flex-col gap-6">
+              <div class="scanner" id="scanner-container">
+                 <video id="scanner-video" autoplay muted playsinline></video>
+                 
+                 <div class="scanner__target">
+                    <svg viewBox="0 0 220 220" fill="none">
+                      <path d="M40 2H22C10.9543 2 2 10.9543 2 22V40" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                      <path d="M180 2H198C209.046 2 218 10.9543 218 22V40" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                      <path d="M40 218H22C10.9543 218 2 209.046 2 198V180" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                      <path d="M180 218H198C209.046 218 218 209.046 218 198V180" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                    </svg>
+                 </div>
+                 
+                 <div class="scanner__scanline"></div>
+                 <div class="scanner__hint" id="scanner-hint">Klik tombol untuk tes scan</div>
+                 <div class="scanner__processing"><div class="spinner"></div></div>
+                 <div class="scanner__result" id="scanner-result"></div>
+
+                 <div class="scanner__placeholder" id="scanner-placeholder">
+                    <span style="font-size: 3rem; opacity: 0.5">🖐</span>
+                    <p>Tes identifikasi untuk user ini</p>
+                 </div>
+              </div>
+
+              <button id="btn-test-scan" class="btn btn--primary btn--full btn--lg">
+                 Tes Identifikasi Telapak
+              </button>
+           </section>
+        </div>
+      </div>
+    </main>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="modal-backdrop hidden"></div>
+
+    <!-- Toast container -->
+    <div id="toast-container"></div>
+
+    <script type="module" src="js/pages/user-detail.js"></script>
+  </body>
+</html>

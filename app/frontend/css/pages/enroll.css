@@ -1,0 +1,99 @@
+/* ============================================================
+   enroll.css — Enrollment specific styles
+   ============================================================ */
+
+.enroll-step {
+  animation: fade-in var(--duration-base) var(--ease-out);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scanner Layout */
+.scanner-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: var(--space-8);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .scanner-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Progress Stepper */
+.progress-stepper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  margin: var(--space-6) 0;
+  padding: 0 var(--space-2);
+}
+
+.progress-stepper::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: var(--space-4);
+  right: var(--space-4);
+  height: 2px;
+  background: var(--color-border);
+  z-index: 1;
+  transform: translateY(-50%);
+}
+
+.step-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  position: relative;
+  z-index: 2;
+  transition: all var(--duration-base) var(--ease-out);
+}
+
+.step-dot.active {
+  border-color: var(--color-matcha);
+  transform: scale(1.2);
+}
+
+.step-dot.completed {
+  background: var(--color-matcha);
+  border-color: var(--color-matcha);
+}
+
+/* Success icon */
+.status-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+}
+
+.status-icon--success {
+  background: var(--color-matcha-soft);
+  color: var(--color-matcha);
+}
+
+/* Form group overrides for center alignment if needed */
+.enroll-step.text-center .form-group {
+  text-align: left;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}

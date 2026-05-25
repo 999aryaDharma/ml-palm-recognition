@@ -1,0 +1,280 @@
+/* ============================================================
+   pages/demo.css — Shared demo module styles
+   ============================================================ */
+
+/* ── Demo header ──────────────────────────────────────────── */
+.demo-merchant-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  background: var(--color-surface-warm);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  border: 1px solid var(--color-border);
+  border-bottom: none;
+}
+
+.demo-merchant-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: var(--color-coffee);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+
+.demo-merchant-name {
+  font-family: var(--font-heading);
+  font-size: var(--text-h3);
+}
+
+.demo-merchant-sub {
+  font-size: var(--text-xs);
+  color: var(--color-coffee-light);
+}
+
+/* ── Cart items ───────────────────────────────────────────── */
+.cart-body {
+  border: 1px solid var(--color-border);
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  padding: var(--space-5) var(--space-6);
+  background: var(--color-surface);
+}
+
+.cart-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+}
+
+.cart-item:last-child {
+  border-bottom: none;
+}
+
+.cart-item-name {
+  color: var(--color-coffee-soft);
+}
+.cart-item-price {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--color-coffee);
+}
+
+.cart-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-4) 0 0;
+  margin-top: var(--space-3);
+  border-top: 2px solid var(--color-coffee);
+  font-weight: 600;
+}
+
+.cart-total-amount {
+  font-family: var(--font-heading);
+  font-size: var(--text-h3);
+  color: var(--color-coffee);
+}
+
+/* ── Receipt card ─────────────────────────────────────────── */
+.receipt-card {
+  background: var(--color-surface-warm);
+  border: 2px dashed var(--color-matcha);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  text-align: center;
+  animation: receipt-appear var(--duration-slow) var(--ease-out);
+}
+
+@keyframes receipt-appear {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.receipt-icon {
+  font-size: 2.5rem;
+  margin-bottom: var(--space-3);
+}
+
+.receipt-title {
+  font-family: var(--font-heading);
+  font-size: var(--text-h3);
+  color: var(--color-matcha);
+  margin-bottom: var(--space-2);
+}
+
+.receipt-details {
+  font-size: var(--text-sm);
+  color: var(--color-coffee-soft);
+  margin-bottom: var(--space-4);
+}
+
+.receipt-txn {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-coffee-light);
+  background: var(--color-log-bg);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  display: inline-block;
+}
+
+/* ── Access door ──────────────────────────────────────────── */
+.door-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-8);
+}
+
+.door-frame {
+  position: relative;
+  width: 120px;
+  height: 180px;
+  border: 4px solid var(--color-coffee);
+  border-radius: var(--radius-sm);
+  background: var(--color-cream);
+  overflow: visible;
+  perspective: 600px;
+}
+
+.door-panel {
+  position: absolute;
+  inset: 0;
+  background: var(--color-coffee);
+  border-radius: 0;
+  transform-origin: left center;
+  transition: transform var(--duration-demo) var(--ease-in-out);
+}
+
+.door-panel.door--open {
+  transform: perspective(600px) rotateY(-75deg);
+}
+
+.door-knob {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-honey);
+  box-shadow: 0 0 0 2px var(--color-honey-soft);
+}
+
+.door-status {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+}
+
+.door-status--locked {
+  background: var(--color-coral-soft);
+  color: var(--color-coral);
+}
+.door-status--unlocked {
+  background: var(--color-matcha-soft);
+  color: var(--color-matcha);
+}
+
+/* ── Patient card ─────────────────────────────────────────── */
+.patient-card {
+  background: var(--color-surface-warm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2xl);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-soft);
+  animation: step-in var(--duration-slow) var(--ease-out);
+}
+
+.patient-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.patient-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.patient-field-label {
+  font-size: var(--text-xs);
+  color: var(--color-coffee-light);
+  font-weight: 500;
+  margin-bottom: var(--space-1);
+}
+
+.patient-field-value {
+  font-size: var(--text-sm);
+  color: var(--color-coffee);
+  font-weight: 500;
+}
+
+/* ── Attendance log ───────────────────────────────────────── */
+.attendance-log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.attendance-entry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  animation: log-in 0.2s ease;
+}
+
+.attendance-mode {
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+
+.attendance-mode--checkin {
+  background: var(--color-matcha-soft);
+  color: var(--color-matcha);
+}
+.attendance-mode--checkout {
+  background: var(--color-honey-soft);
+  color: var(--color-honey);
+}
+
+.attendance-name {
+  flex: 1;
+  font-weight: 500;
+}
+.attendance-time {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-coffee-light);
+}

@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PalmID — Palm Biometric App</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/layout.css" />
+    <link rel="stylesheet" href="css/components.css" />
+
+    <style>
+      /* ── Home-specific styles ── */
+      .hero-section {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: var(--space-12);
+        align-items: start;
+        margin-bottom: var(--space-12);
+      }
+
+      @media (max-width: 900px) {
+        .hero-section {
+          grid-template-columns: 1fr;
+        }
+        .hero-status-panel {
+          order: -1;
+        }
+      }
+
+      .hero-eyebrow {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        margin-bottom: var(--space-4);
+      }
+
+      .hero-eyebrow-badge {
+        background: var(--color-matcha-soft);
+        border: 1px solid var(--color-matcha);
+        color: var(--color-matcha);
+        padding: var(--space-1) var(--space-3);
+        border-radius: var(--radius-full);
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+      }
+
+      .hero-title {
+        font-size: clamp(2rem, 4vw, var(--text-display));
+        line-height: 1.05;
+        margin-bottom: var(--space-4);
+      }
+
+      .hero-title em {
+        font-style: normal;
+        color: var(--color-coffee-light);
+      }
+
+      .hero-subtitle {
+        font-size: var(--text-body-lg);
+        color: var(--color-coffee-soft);
+        max-width: 480px;
+        margin-bottom: var(--space-6);
+      }
+
+      /* Status panel */
+      .hero-status-panel {
+        width: 300px;
+        flex-shrink: 0;
+      }
+
+      @media (max-width: 900px) {
+        .hero-status-panel {
+          width: 100%;
+          max-width: 400px;
+        }
+      }
+
+      .status-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: var(--space-3) 0;
+        border-bottom: 1px solid var(--color-border);
+        font-size: var(--text-sm);
+      }
+
+      .status-row:last-child {
+        border-bottom: none;
+      }
+      .status-row-label {
+        color: var(--color-coffee-soft);
+      }
+      .status-row-value {
+        font-family: var(--font-mono);
+        font-weight: 500;
+        font-size: var(--text-xs);
+      }
+
+      /* Quick actions */
+      .section-label {
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--color-coffee-light);
+        margin-bottom: var(--space-4);
+      }
+
+      .quick-action-icon--enroll {
+        background: var(--color-coffee);
+      }
+      .quick-action-icon--users {
+        background: var(--color-sky-muted);
+      }
+      .quick-action-icon--payment {
+        background: var(--color-matcha);
+      }
+      .quick-action-icon--attend {
+        background: var(--color-honey);
+      }
+      .quick-action-icon--access {
+        background: var(--color-coffee-soft);
+      }
+      .quick-action-icon--patient {
+        background: var(--color-coral);
+      }
+
+      /* Privacy notice */
+      .privacy-notice {
+        display: flex;
+        gap: var(--space-3);
+        padding: var(--space-4) var(--space-5);
+        background: var(--color-log-bg);
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--color-border);
+        font-size: var(--text-xs);
+        color: var(--color-coffee-light);
+        line-height: 1.6;
+      }
+
+      .privacy-notice-icon {
+        font-size: 1rem;
+        flex-shrink: 0;
+      }
+    </style>
+  </head>
+
+  <body class="app-body">
+    <!-- Navbar -->
+    <header class="app-navbar" role="banner"></header>
+
+    <!-- Main -->
+    <main class="app-main" id="main-content">
+      <div class="container-xl">
+        <!-- Hero Section -->
+        <section class="hero-section" aria-labelledby="hero-title">
+          <div class="hero-content">
+            <div class="hero-eyebrow">
+              <span class="hero-eyebrow-badge">v0.5 · Web-Based</span>
+            </div>
+            <h1 class="hero-title" id="hero-title">
+              Palm Biometric<br />
+              <em>Identification System</em>
+            </h1>
+            <p class="hero-subtitle">
+              Sistem identifikasi telapak tangan berbasis web menggunakan
+              MobileFaceNet + ArcFace. Scan telapak untuk payment, absensi,
+              akses kontrol, dan check-in pasien.
+            </p>
+            <div class="page-header-actions">
+              <a href="enroll.html" class="btn btn--primary btn--lg">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <line x1="19" y1="8" x2="19" y2="14" />
+                  <line x1="22" y1="11" x2="16" y2="11" />
+                </svg>
+                Daftarkan Pengguna
+              </a>
+              <a href="demo/payment.html" class="btn btn--secondary btn--lg">
+                Coba Demo
+              </a>
+            </div>
+          </div>
+
+          <!-- Backend Status Card -->
+          <aside class="hero-status-panel" aria-label="Backend status">
+            <div class="surface-card">
+              <p class="eyebrow" style="margin-bottom: var(--space-4)">
+                SYSTEM STATUS
+              </p>
+              <div id="status-rows">
+                <div class="status-row">
+                  <span class="status-row-label">Backend API</span>
+                  <span class="status-row-value" id="api-status">
+                    <span class="badge badge--processing">
+                      <span class="status-dot status-dot--pulse"></span>
+                      Checking...
+                    </span>
+                  </span>
+                </div>
+                <div class="status-row">
+                  <span class="status-row-label">ML Model</span>
+                  <span class="status-row-value" id="model-status">—</span>
+                </div>
+                <div class="status-row">
+                  <span class="status-row-label">Enrolled Users</span>
+                  <span class="status-row-value" id="enrolled-count">—</span>
+                </div>
+                <div class="status-row">
+                  <span class="status-row-label">Endpoint</span>
+                  <span
+                    class="status-row-value"
+                    style="color: var(--color-coffee-light)"
+                    >localhost:8000</span
+                  >
+                </div>
+              </div>
+            </div>
+          </aside>
+        </section>
+
+        <!-- Quick Actions -->
+        <section aria-labelledby="actions-label">
+          <p class="section-label" id="actions-label">FITUR APLIKASI</p>
+          <div class="quick-actions-grid">
+            <a href="enroll.html" class="quick-action">
+              <div class="quick-action-icon quick-action-icon--enroll">🖐</div>
+              <div class="quick-action-title">Enrollment</div>
+              <div class="quick-action-desc">Daftarkan telapak tangan baru</div>
+            </a>
+
+            <a href="users.html" class="quick-action">
+              <div class="quick-action-icon quick-action-icon--users">👥</div>
+              <div class="quick-action-title">Manajemen Users</div>
+              <div class="quick-action-desc">
+                Lihat & kelola pengguna terdaftar
+              </div>
+            </a>
+
+            <a href="demo/payment.html" class="quick-action">
+              <div class="quick-action-icon quick-action-icon--payment">💳</div>
+              <div class="quick-action-title">Palm Payment</div>
+              <div class="quick-action-desc">Demo pembayaran biometrik</div>
+            </a>
+
+            <a href="demo/attendance.html" class="quick-action">
+              <div class="quick-action-icon quick-action-icon--attend">📋</div>
+              <div class="quick-action-title">Absensi</div>
+              <div class="quick-action-desc">Check-in & check-out karyawan</div>
+            </a>
+
+            <a href="demo/access.html" class="quick-action">
+              <div class="quick-action-icon quick-action-icon--access">🚪</div>
+              <div class="quick-action-title">Access Control</div>
+              <div class="quick-action-desc">Kontrol akses pintu & area</div>
+            </a>
+
+            <a href="demo/patient.html" class="quick-action">
+              <div class="quick-action-icon quick-action-icon--patient">🏥</div>
+              <div class="quick-action-title">Patient Check-in</div>
+              <div class="quick-action-desc">Check-in pasien rumah sakit</div>
+            </a>
+          </div>
+        </section>
+
+        <!-- Privacy Notice -->
+        <section style="margin-top: var(--space-10)">
+          <div class="privacy-notice" role="note">
+            <span class="privacy-notice-icon">🔒</span>
+            <p>
+              Untuk demo ini, gambar telapak diproses oleh backend lokal melalui
+              HTTP request ke
+              <code
+                style="
+                  font-family: var(--font-mono);
+                  font-size: 0.75em;
+                  background: var(--color-border);
+                  padding: 1px 5px;
+                  border-radius: 3px;
+                "
+                >localhost:8000</code
+              >. Pastikan server FastAPI berjalan di perangkat yang dipercaya.
+              Template biometrik digunakan hanya untuk kebutuhan identifikasi
+              demo. Tidak ada data yang dikirim ke internet.
+            </p>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- Toast container -->
+    <div id="toast-container" aria-live="polite" aria-atomic="false"></div>
+
+    <script type="module">
+      import { mountNavbar } from "./js/components/navbar.js";
+      import { checkHealth } from "./js/api/client.js";
+      import { getUsers } from "./js/api/users.js";
+      import { toast } from "./js/components/toast.js";
+
+      // Initialize components
+      mountNavbar();
+
+      async function updateStatus() {
+        try {
+          const { online, data } = await checkHealth();
+
+          const apiStatusEl = document.getElementById("api-status");
+          const modelStatusEl = document.getElementById("model-status");
+          const enrolledEl = document.getElementById("enrolled-count");
+
+          if (!apiStatusEl || !modelStatusEl || !enrolledEl) return;
+
+          if (online) {
+            apiStatusEl.innerHTML = `<span class="badge badge--identified"><span class="status-dot status-dot--pulse"></span> Online</span>`;
+            modelStatusEl.innerHTML = data?.model_loaded
+              ? `<span class="badge badge--identified">Loaded</span>`
+              : `<span class="badge badge--unknown">Not Loaded</span>`;
+            enrolledEl.textContent = data?.cached_users ?? "—";
+            
+            // Also get enrolled user count from /users
+            try {
+              const users = await getUsers();
+              enrolledEl.textContent = users.length + " pengguna";
+            } catch (_) {}
+          } else {
+            apiStatusEl.innerHTML = `<span class="badge badge--error">Offline</span>`;
+            modelStatusEl.textContent = "—";
+            enrolledEl.textContent = "—";
+            toast.warning(
+              "Backend tidak aktif. Jalankan FastAPI server di port 8000.",
+              "Server Offline",
+            );
+          }
+        } catch (err) {
+          console.error("Status update failed:", err);
+        }
+      }
+
+      updateStatus();
+    </script>
+  </body>
+</html>

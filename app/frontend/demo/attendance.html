@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Absensi — PalmID</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="../css/base.css" />
+    <link rel="stylesheet" href="../css/layout.css" />
+    <link rel="stylesheet" href="../css/components.css" />
+  </head>
+
+  <body class="app-body">
+    <!-- Navbar -->
+    <header class="app-navbar" role="banner"></header>
+
+    <!-- Main -->
+    <main class="app-main">
+      <div class="container-lg">
+        <div class="page-header">
+          <p class="eyebrow">DEMO MODULE</p>
+          <h1>Sistem Absensi</h1>
+          <p>Demo pencatatan kehadiran (check-in/out) karyawan menggunakan biometrik telapak tangan.</p>
+        </div>
+
+        <div class="demo-grid">
+           <!-- History Panel -->
+           <section class="surface-card flex flex-col" style="height: 100%">
+              <div class="flex justify-between items-center" style="margin-bottom: var(--space-6)">
+                 <h3 style="margin-bottom: 0">Log Kehadiran</h3>
+                 <div class="badge badge--online">Hari Ini</div>
+              </div>
+              
+              <div id="attendance-list" class="flex flex-col gap-3" style="flex: 1">
+                 <div class="empty-state" style="padding: var(--space-8) 0">
+                    <p class="text-xs">Belum ada aktivitas absensi hari ini.</p>
+                 </div>
+              </div>
+
+              <div style="margin-top: var(--space-6)">
+                 <div class="two-col">
+                    <button class="btn btn--secondary btn--full">Check-in</button>
+                    <button class="btn btn--ghost btn--full">Check-out</button>
+                 </div>
+              </div>
+           </section>
+
+           <!-- Scanner Panel -->
+           <section id="scanner-panel" class="flex flex-col gap-6">
+              <div class="scanner" id="scanner-container">
+                 <div class="scanner__placeholder">
+                    <span style="font-size: 3rem; opacity: 0.5">📋</span>
+                    <p>Pilih mode absensi untuk memulai</p>
+                 </div>
+              </div>
+           </section>
+        </div>
+      </div>
+    </main>
+
+    <!-- Toast container -->
+    <div id="toast-container"></div>
+
+    <script type="module">
+      import { mountNavbar } from "../js/components/navbar.js";
+      mountNavbar();
+    </script>
+  </body>
+</html>

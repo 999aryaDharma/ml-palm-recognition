@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Enrollment — PalmID</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/layout.css" />
+    <link rel="stylesheet" href="css/components.css" />
+    <link rel="stylesheet" href="css/pages/enroll.css" />
+  </head>
+
+  <body class="app-body">
+    <!-- Navbar -->
+    <header class="app-navbar" role="banner"></header>
+
+    <!-- Main -->
+    <main class="app-main">
+      <div class="container-sm">
+        <!-- Step 1: Input Name -->
+        <section id="step-name" class="enroll-step" aria-labelledby="title-name">
+          <div class="page-header">
+            <p class="eyebrow">BIOMETRIC ENROLLMENT</p>
+            <h1 id="title-name">Daftarkan Pengguna Baru</h1>
+            <p>
+              Masukkan nama lengkap untuk memulai pendaftaran biometrik telapak
+              tangan.
+            </p>
+          </div>
+
+          <div class="surface-card">
+            <div class="form-group">
+              <label for="input-name">Nama Lengkap</label>
+              <input
+                type="text"
+                id="input-name"
+                class="input"
+                placeholder="Contoh: Budi Santoso"
+                autocomplete="off"
+                required
+              />
+              <p class="form-hint">Gunakan nama asli untuk akurasi data.</p>
+            </div>
+            <button id="btn-to-capture" class="btn btn--primary btn--full btn--lg">
+              Mulai Enrollment
+            </button>
+          </div>
+        </section>
+
+        <!-- Step 2: Capture Samples -->
+        <section
+          id="step-capture"
+          class="enroll-step hidden"
+          aria-labelledby="title-capture"
+        >
+          <div class="page-header">
+            <p class="eyebrow">STAGE 2: SAMPLE CAPTURE</p>
+            <h1 id="title-capture">Ambil Sampel Telapak</h1>
+            <p>
+              Tunjukkan telapak tangan ke kamera. Sistem akan mengambil 5 sampel
+              secara otomatis.
+            </p>
+          </div>
+
+          <div class="scanner-layout">
+            <!-- Scanner Component -->
+            <div class="scanner" id="scanner-container">
+              <video id="enroll-video" autoplay muted playsinline></video>
+
+              <!-- Target Bracket -->
+              <div class="scanner__target" id="scanner-target">
+                <svg viewBox="0 0 220 220" fill="none">
+                  <path
+                    d="M40 2H22C10.9543 2 2 10.9543 2 22V40"
+                    stroke="currentColor"
+                    stroke-width="4"
+                    stroke-linecap="round"
+                  />
+                  <path
+                    d="M180 2H198C209.046 2 218 10.9543 218 22V40"
+                    stroke="currentColor"
+                    stroke-width="4"
+                    stroke-linecap="round"
+                  />
+                  <path
+                    d="M40 218H22C10.9543 218 2 209.046 2 198V180"
+                    stroke="currentColor"
+                    stroke-width="4"
+                    stroke-linecap="round"
+                  />
+                  <path
+                    d="M180 218H198C209.046 218 218 209.046 218 198V180"
+                    stroke="currentColor"
+                    stroke-width="4"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </div>
+
+              <!-- Scan Line -->
+              <div class="scanner__scanline hidden" id="scanline"></div>
+
+              <!-- Hint Overlay -->
+              <div class="glass-hint" id="scanner-hint" aria-live="polite">
+                Menghidupkan kamera...
+              </div>
+
+              <!-- Loading Overlay -->
+              <div class="scanner__overlay hidden" id="scanner-loading">
+                <div class="spinner"></div>
+              </div>
+            </div>
+
+            <!-- Progress Panel -->
+            <div class="surface-card">
+              <div class="flex justify-between items-center" style="margin-bottom: var(--space-4)">
+                <h3 id="progress-title">Progres Sampel</h3>
+                <span class="badge badge--processing" id="sample-count-badge">0 / 5</span>
+              </div>
+
+              <div class="progress-stepper" id="sample-stepper">
+                <div class="step-dot" data-step="1"></div>
+                <div class="step-dot" data-step="2"></div>
+                <div class="step-dot" data-step="3"></div>
+                <div class="step-dot" data-step="4"></div>
+                <div class="step-dot" data-step="5"></div>
+              </div>
+
+              <p class="text-sm" id="capture-status" style="margin-top: var(--space-4)">
+                Tahan tangan tetap stabil saat sistem mengambil gambar.
+              </p>
+
+              <div style="margin-top: var(--space-6)">
+                <button id="btn-cancel-capture" class="btn btn--secondary btn--full">
+                  Batal
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Step 3: Verification -->
+        <section id="step-verifying" class="enroll-step hidden text-center">
+          <div class="page-header">
+            <h1 id="verifying-title">Memverifikasi...</h1>
+            <p>Mohon tunggu sebentar, sistem sedang memvalidasi template biometrik Anda.</p>
+          </div>
+          <div class="surface-card flex flex-col items-center gap-6" style="padding: var(--space-12)">
+             <div class="spinner spinner--lg"></div>
+             <p class="text-mono">RUNNING_VERIFICATION_GATE</p>
+          </div>
+        </section>
+
+        <!-- Step 4: Success -->
+        <section id="step-success" class="enroll-step hidden text-center">
+          <div class="surface-card" style="padding: var(--space-12)">
+            <div class="status-icon status-icon--success" style="margin: 0 auto var(--space-6)">
+              ✅
+            </div>
+            <h1 style="margin-bottom: var(--space-2)">Enrollment Berhasil!</h1>
+            <p class="text-body-lg" style="margin-bottom: var(--space-8)">
+              Selamat datang, <strong id="success-name">User</strong>. Template biometrik Anda telah siap digunakan.
+            </p>
+            <div class="flex flex-col gap-4">
+              <a href="index.html" class="btn btn--primary btn--lg">Kembali ke Menu Utama</a>
+              <a href="users.html" class="btn btn--secondary">Lihat Daftar Pengguna</a>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+
+    <!-- Toast container -->
+    <div id="toast-container"></div>
+
+    <script type="module" src="js/pages/enroll.js"></script>
+  </body>
+</html>

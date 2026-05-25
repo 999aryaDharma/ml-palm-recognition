@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Users — PalmID</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/layout.css" />
+    <link rel="stylesheet" href="css/components.css" />
+  </head>
+
+  <body class="app-body">
+    <!-- Navbar -->
+    <header class="app-navbar" role="banner"></header>
+
+    <!-- Main -->
+    <main class="app-main">
+      <div class="container-md">
+        <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-end;">
+          <div>
+            <p class="eyebrow">USER MANAGEMENT</p>
+            <h1>Daftar Pengguna</h1>
+            <p>Kelola data biometrik pengguna yang telah terdaftar di sistem.</p>
+          </div>
+          <div class="page-header-actions" style="margin-top: 0">
+             <a href="enroll.html" class="btn btn--primary">
+                + Tambah Pengguna
+             </a>
+          </div>
+        </div>
+
+        <!-- Search & Filter -->
+        <div class="surface-card" style="margin-bottom: var(--space-8); padding: var(--space-4)">
+           <div class="form-group" style="margin-top: 0">
+              <div style="position: relative">
+                 <span style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--color-coffee-light)">🔍</span>
+                 <input type="text" id="user-search" class="input" placeholder="Cari nama pengguna..." style="padding-left: 44px">
+              </div>
+           </div>
+        </div>
+
+        <!-- Users Grid -->
+        <div id="users-grid" class="users-grid">
+           <!-- Skeletons while loading -->
+           <div class="skeleton-card"></div>
+           <div class="skeleton-card"></div>
+           <div class="skeleton-card"></div>
+           <div class="skeleton-card"></div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="empty-state" class="empty-state hidden">
+           <div class="empty-state-icon">👥</div>
+           <h3>Belum ada pengguna</h3>
+           <p>Silakan daftarkan pengguna baru untuk mulai menggunakan sistem identifikasi telapak tangan.</p>
+           <a href="enroll.html" class="btn btn--primary" style="margin-top: var(--space-4)">Mulai Enrollment</a>
+        </div>
+      </div>
+    </main>
+
+    <!-- Toast container -->
+    <div id="toast-container"></div>
+
+    <script type="module" src="js/pages/users.js"></script>
+  </body>
+</html>

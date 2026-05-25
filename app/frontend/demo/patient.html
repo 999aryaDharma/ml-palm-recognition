@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Patient Check-in — PalmID</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="../css/base.css" />
+    <link rel="stylesheet" href="../css/layout.css" />
+    <link rel="stylesheet" href="../css/components.css" />
+  </head>
+
+  <body class="app-body">
+    <!-- Navbar -->
+    <header class="app-navbar" role="banner"></header>
+
+    <!-- Main -->
+    <main class="app-main">
+      <div class="container-lg">
+        <div class="page-header">
+          <p class="eyebrow">DEMO MODULE</p>
+          <h1>Patient Check-in</h1>
+          <p>Demo identifikasi pasien rumah sakit untuk mempercepat proses pendaftaran dan administrasi.</p>
+        </div>
+
+        <div class="demo-grid">
+           <!-- Patient Card Panel -->
+           <section id="patient-panel" class="surface-card flex flex-col items-center justify-center" style="min-height: 400px; border-style: dashed; border-width: 2px">
+              <div style="font-size: 3rem; opacity: 0.2; margin-bottom: var(--space-4)">🏥</div>
+              <p class="text-muted">Pindai telapak tangan pasien untuk melihat data rekam medis.</p>
+           </section>
+
+           <!-- Scanner Panel -->
+           <section id="scanner-panel" class="flex flex-col gap-6">
+              <div class="scanner" id="scanner-container">
+                 <div class="scanner__placeholder">
+                    <span style="font-size: 3rem; opacity: 0.5">🏥</span>
+                    <p>Scanner standby...</p>
+                 </div>
+              </div>
+           </section>
+        </div>
+      </div>
+    </main>
+
+    <!-- Toast container -->
+    <div id="toast-container"></div>
+
+    <script type="module">
+      import { mountNavbar } from "../js/components/navbar.js";
+      mountNavbar();
+    </script>
+  </body>
+</html>
