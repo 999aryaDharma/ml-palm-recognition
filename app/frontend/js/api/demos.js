@@ -12,13 +12,17 @@ export const paymentPay = (userId, amount, merchant) =>
   });
 
 // ── Attendance ────────────────────────────────────────────
-export const attendanceCheckin = (userId, mode = "checkin") =>
+export const attendanceCheckin = (userId, location = "default") =>
   apiFetch("/demos/attendance/checkin", {
     method: "POST",
-    body: JSON.stringify({ user_id: userId, mode }),
+    body: JSON.stringify({ user_id: userId, location }),
   });
 
-// ── Access ────────────────────────────────────────────────
+// ── Access ────────────────────────────────────────────────export const accessCheck = (userId, doorId = "door-01") =>
+apiFetch("/demos/access/check", {
+  method: "POST",
+  body: JSON.stringify({ user_id: userId, door_id: doorId }),
+});
 export const getAuthorizedUsers = () => apiFetch("/demos/access/authorized");
 
 export const setAuthorized = (userId, authorized) =>

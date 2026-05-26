@@ -27,40 +27,50 @@
         <div class="page-header">
           <p class="eyebrow">DEMO MODULE</p>
           <h1>Sistem Absensi</h1>
-          <p>Demo pencatatan kehadiran (check-in/out) karyawan menggunakan biometrik telapak tangan.</p>
+          <p>
+            Demo pencatatan kehadiran (check-in/out) karyawan menggunakan
+            biometrik telapak tangan.
+          </p>
         </div>
 
         <div class="demo-grid">
-           <!-- History Panel -->
-           <section class="surface-card flex flex-col" style="height: 100%">
-              <div class="flex justify-between items-center" style="margin-bottom: var(--space-6)">
-                 <h3 style="margin-bottom: 0">Log Kehadiran</h3>
-                 <div class="badge badge--online">Hari Ini</div>
-              </div>
-              
-              <div id="attendance-list" class="flex flex-col gap-3" style="flex: 1">
-                 <div class="empty-state" style="padding: var(--space-8) 0">
-                    <p class="text-xs">Belum ada aktivitas absensi hari ini.</p>
-                 </div>
-              </div>
+          <!-- History Panel -->
+          <section class="surface-card flex flex-col" style="height: 100%">
+            <div
+              class="flex justify-between items-center"
+              style="margin-bottom: var(--space-6)"
+            >
+              <h3 style="margin-bottom: 0">Log Kehadiran</h3>
+              <div class="badge badge--online">Hari Ini</div>
+            </div>
 
-              <div style="margin-top: var(--space-6)">
-                 <div class="two-col">
-                    <button class="btn btn--secondary btn--full">Check-in</button>
-                    <button class="btn btn--ghost btn--full">Check-out</button>
-                 </div>
+            <div
+              id="attendance-list"
+              class="flex flex-col gap-3"
+              style="flex: 1"
+            >
+              <div class="empty-state" style="padding: var(--space-8) 0">
+                <p class="text-xs">Belum ada aktivitas absensi hari ini.</p>
               </div>
-           </section>
+            </div>
 
-           <!-- Scanner Panel -->
-           <section id="scanner-panel" class="flex flex-col gap-6">
-              <div class="scanner" id="scanner-container">
-                 <div class="scanner__placeholder">
-                    <span style="font-size: 3rem; opacity: 0.5">📋</span>
-                    <p>Pilih mode absensi untuk memulai</p>
-                 </div>
+            <div style="margin-top: var(--space-6)">
+              <div class="two-col">
+                <button class="btn btn--secondary btn--full">Check-in</button>
+                <button class="btn btn--ghost btn--full">Check-out</button>
               </div>
-           </section>
+            </div>
+          </section>
+
+          <!-- Scanner Panel -->
+          <section id="scanner-panel" class="flex flex-col gap-6">
+            <div class="scanner" id="scanner-container">
+              <div class="scanner__placeholder">
+                <span style="font-size: 3rem; opacity: 0.5">📋</span>
+                <p>Pilih mode absensi untuk memulai</p>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
     </main>
@@ -68,9 +78,6 @@
     <!-- Toast container -->
     <div id="toast-container"></div>
 
-    <script type="module">
-      import { mountNavbar } from "../js/components/navbar.js";
-      mountNavbar();
-    </script>
+    <script type="module" src="../js/pages/attendance.js"></script>
   </body>
 </html>

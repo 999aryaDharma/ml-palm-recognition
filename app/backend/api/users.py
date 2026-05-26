@@ -5,7 +5,8 @@ import numpy as np
 from db.database import get_db
 from db.repositories import UserRepository, TemplateRepository
 from schemas.users import UserCreateRequest, UserResponse, DeleteUserResponse, TemplateCreateResponse
-from services.identification import PalmService
+from services.image_service import upload_to_pil
+from services.enrollment_service import EnrollmentService
 
 router = APIRouter()
 
@@ -58,8 +59,16 @@ async def add_template(
     image: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    palm_service: PalmService = request.app.state.palm_service
+    """
+    Upload palm template for enrollment.
     
+    Args:
+        user_id: User ID to enroll template for
+        image: Palm image file
+        
+    Returns:
+        Template creation response with quality score
+    """
     # Check if user exists
     user_repo = UserRepository(db)
     user = user_repo.get(user_id)
@@ -67,9 +76,26 @@ async def add_template(
         raise HTTPException(status_code=404, detail={"error": "user_not_found", "message": "User tidak ditemukan."})
 
     try:
-        image_bytes = await image.read()
-        embedding, quality_score = palm_service.process_image(image_bytes)
+        # Validate and convert image
+        pil_image = await upload_to_pil(image, request.app.state.settings.max_upload_mb)
         
+        # Create enrollment service
+        service = EnrollmentService(request.app.state)
+        
+        # Process template (detect hand, extract ROI, extract embedding)
+        try:
+            embedding, quality_score, quality_status = service.process_template(pil_image)
+        except ValueError as e:
+            error_code = str(e)
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": error_code,
+                    "message": f"Template processing failed: {error_code}"
+                }
+            )
+        
+        # Save template to database
         template_repo = TemplateRepository(db)
         template = template_repo.create(
             user_id=user_id,
@@ -77,12 +103,21 @@ async def add_template(
             quality_score=quality_score,
         )
         
+        # Refresh cache after template added
+        cache = getattr(request.app.state, "cache", None)
+        if cache:
+            cache.refresh(db)
+        
         return TemplateCreateResponse(
             template_id=template.id,
             quality_score=template.quality_score,
             embedding_norm=np.linalg.norm(embedding),
         )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail={"error": "image_processing_failed", "message": str(e)})
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"error": "internal_server_error", "message": "An unexpected error occurred."})
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "internal_server_error", "message": f"Template upload failed: {str(e)}"}
+        )
+

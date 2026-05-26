@@ -4,6 +4,7 @@ def test_health_endpoint(client):
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "ok"
-    # Models should be None initially as we haven't integrated ML yet in main.py lifespan for this phase
-    assert data["model_loaded"] is False
-    assert data["detector_loaded"] is False
+    # Models should be initialized by lifespan
+    assert data["model_loaded"] is not None
+    assert data["detector_loaded"] is not None
+    assert data["cached_users"] >= 0

@@ -83,27 +83,6 @@
         }
       }
 
-      .status-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: var(--space-3) 0;
-        border-bottom: 1px solid var(--color-border);
-        font-size: var(--text-sm);
-      }
-
-      .status-row:last-child {
-        border-bottom: none;
-      }
-      .status-row-label {
-        color: var(--color-coffee-soft);
-      }
-      .status-row-value {
-        font-family: var(--font-mono);
-        font-weight: 500;
-        font-size: var(--text-xs);
-      }
-
       /* Quick actions */
       .section-label {
         font-family: var(--font-mono);
@@ -334,7 +313,7 @@
               ? `<span class="badge badge--identified">Loaded</span>`
               : `<span class="badge badge--unknown">Not Loaded</span>`;
             enrolledEl.textContent = data?.cached_users ?? "—";
-            
+
             // Also get enrolled user count from /users
             try {
               const users = await getUsers();

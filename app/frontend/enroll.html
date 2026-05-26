@@ -26,7 +26,11 @@
     <main class="app-main">
       <div class="container-sm">
         <!-- Step 1: Input Name -->
-        <section id="step-name" class="enroll-step" aria-labelledby="title-name">
+        <section
+          id="step-name"
+          class="enroll-step"
+          aria-labelledby="title-name"
+        >
           <div class="page-header">
             <p class="eyebrow">BIOMETRIC ENROLLMENT</p>
             <h1 id="title-name">Daftarkan Pengguna Baru</h1>
@@ -49,7 +53,10 @@
               />
               <p class="form-hint">Gunakan nama asli untuk akurasi data.</p>
             </div>
-            <button id="btn-to-capture" class="btn btn--primary btn--full btn--lg">
+            <button
+              id="btn-to-capture"
+              class="btn btn--primary btn--full btn--lg"
+            >
               Mulai Enrollment
             </button>
           </div>
@@ -109,21 +116,26 @@
               <div class="scanner__scanline hidden" id="scanline"></div>
 
               <!-- Hint Overlay -->
-              <div class="glass-hint" id="scanner-hint" aria-live="polite">
+              <div class="scanner__hint" id="scanner-hint" aria-live="polite">
                 Menghidupkan kamera...
               </div>
 
               <!-- Loading Overlay -->
-              <div class="scanner__overlay hidden" id="scanner-loading">
+              <div class="scanner__processing hidden" id="scanner-loading">
                 <div class="spinner"></div>
               </div>
             </div>
 
             <!-- Progress Panel -->
             <div class="surface-card">
-              <div class="flex justify-between items-center" style="margin-bottom: var(--space-4)">
+              <div
+                class="flex justify-between items-center"
+                style="margin-bottom: var(--space-4)"
+              >
                 <h3 id="progress-title">Progres Sampel</h3>
-                <span class="badge badge--processing" id="sample-count-badge">0 / 5</span>
+                <span class="badge badge--processing" id="sample-count-badge"
+                  >0 / 5</span
+                >
               </div>
 
               <div class="progress-stepper" id="sample-stepper">
@@ -134,12 +146,19 @@
                 <div class="step-dot" data-step="5"></div>
               </div>
 
-              <p class="text-sm" id="capture-status" style="margin-top: var(--space-4)">
+              <p
+                class="text-sm"
+                id="capture-status"
+                style="margin-top: var(--space-4)"
+              >
                 Tahan tangan tetap stabil saat sistem mengambil gambar.
               </p>
 
               <div style="margin-top: var(--space-6)">
-                <button id="btn-cancel-capture" class="btn btn--secondary btn--full">
+                <button
+                  id="btn-cancel-capture"
+                  class="btn btn--secondary btn--full"
+                >
                   Batal
                 </button>
               </div>
@@ -151,31 +170,44 @@
         <section id="step-verifying" class="enroll-step hidden text-center">
           <div class="page-header">
             <h1 id="verifying-title">Memverifikasi...</h1>
-            <p>Mohon tunggu sebentar, sistem sedang memvalidasi template biometrik Anda.</p>
+            <p>
+              Mohon tunggu sebentar, sistem sedang memvalidasi template
+              biometrik Anda.
+            </p>
           </div>
-          <div class="surface-card flex flex-col items-center gap-6" style="padding: var(--space-12)">
-             <div class="spinner spinner--lg"></div>
-             <p class="text-mono">RUNNING_VERIFICATION_GATE</p>
+          <div
+            class="surface-card flex flex-col items-center gap-6"
+            style="padding: var(--space-12)"
+          >
+            <div class="spinner spinner--lg"></div>
+            <p class="text-mono">RUNNING_VERIFICATION_GATE</p>
           </div>
         </section>
 
         <!-- Step 4: Success -->
         <section id="step-success" class="enroll-step hidden text-center">
           <div class="surface-card" style="padding: var(--space-12)">
-            <div class="status-icon status-icon--success" style="margin: 0 auto var(--space-6)">
+            <div
+              class="status-icon status-icon--success"
+              style="margin: 0 auto var(--space-6)"
+            >
               ✅
             </div>
             <h1 style="margin-bottom: var(--space-2)">Enrollment Berhasil!</h1>
             <p class="text-body-lg" style="margin-bottom: var(--space-8)">
-              Selamat datang, <strong id="success-name">User</strong>. Template biometrik Anda telah siap digunakan.
+              Selamat datang, <strong id="success-name">User</strong>. Template
+              biometrik Anda telah siap digunakan.
             </p>
             <div class="flex flex-col gap-4">
-              <a href="index.html" class="btn btn--primary btn--lg">Kembali ke Menu Utama</a>
-              <a href="users.html" class="btn btn--secondary">Lihat Daftar Pengguna</a>
+              <a href="index.html" class="btn btn--primary btn--lg"
+                >Kembali ke Menu Utama</a
+              >
+              <a href="users.html" class="btn btn--secondary"
+                >Lihat Daftar Pengguna</a
+              >
             </div>
           </div>
         </section>
-
       </div>
     </main>
 

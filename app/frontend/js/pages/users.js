@@ -93,16 +93,22 @@ function handleSearch() {
 
 /** Show confirmation modal before deleting */
 function confirmDelete(id, name) {
+  // Escape user name to prevent XSS
+  const escapedName = String(name).replace(/[<>&]/g, (c) => {
+    const map = { "<": "&lt;", ">": "&gt;", "&": "&amp;" };
+    return map[c];
+  });
+
   showModal({
     title: "Hapus Pengguna",
-    message: `Apakah Anda yakin ingin menghapus <strong>${name}</strong>? Seluruh data biometrik yang terkait akan dihapus secara permanen.`,
+    message: `Apakah Anda yakin ingin menghapus <strong>${escapedName}</strong>? Seluruh data biometrik yang terkait akan dihapus secara permanen.`,
     icon: "🗑️",
     confirmLabel: "Hapus Pengguna",
     confirmVariant: "danger",
     onConfirm: async () => {
       try {
         await deleteUser(id);
-        toast.success(`Pengguna ${name} telah dihapus.`);
+        toast.success(`Pengguna ${escapedName} telah dihapus.`);
         loadUsers(); // reload list
       } catch (err) {
         toast.error("Gagal menghapus pengguna: " + err.message);

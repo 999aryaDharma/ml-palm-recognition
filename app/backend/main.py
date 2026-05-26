@@ -3,8 +3,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import get_settings
-from db.database import create_tables
-from services.identification import get_palm_service
+from db.database import create_tables, SessionLocal
+from ml.detection import HandDetector
+from ml.recognizer import PalmRecognizer
+from ml.cache import EmbeddingCache
 from api import health, users, identification, demos, demo_logs, debug, seed
 
 
@@ -14,11 +16,25 @@ async def lifespan(app: FastAPI):
 
     # Startup
     create_tables()
+    
+    # Initialize app state
     app.state.settings = settings
-    app.state.palm_service = get_palm_service(settings)
-    app.state.cache = None
+    
+    # Initialize ML models (stubs for now)
+    app.state.detector = HandDetector(settings.hand_landmarker_path)
+    app.state.recognizer = PalmRecognizer(settings.recognizer_model_path)
+    
+    # Initialize embedding cache
+    app.state.cache = EmbeddingCache()
+    try:
+        db = SessionLocal()
+        app.state.cache.warm_up(db)
+        db.close()
+    except Exception as e:
+        print(f"[Warning] Failed to warm up cache: {e}")
+        app.state.cache = EmbeddingCache()
 
-    print("Backend started. DB ready.")
+    print("Backend started. DB ready. ML models initialized.")
     yield
 
     # Shutdown
@@ -36,7 +52,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['http://127.0.0.1:5500', '*'],
+    allow_origins=settings.cors_origins if settings.cors_origins != ["*"] else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

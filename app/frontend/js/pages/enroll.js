@@ -96,6 +96,14 @@ function init() {
     // Auto-focus name input
     inputName.focus();
     logDebug("[Init] Page ready");
+
+    // Add cleanup on page leave
+    window.addEventListener("beforeunload", () => {
+      if (webcam) webcam.stop();
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden && webcam) webcam.stop();
+    });
   } catch (err) {
     logDebug("[Init] ERROR: " + err.message);
     console.error("[Enrollment] Init error:", err);
@@ -281,7 +289,7 @@ async function cancelEnrollment() {
   }
 
   console.log("[Enrollment] Redirecting to index.html");
-  window.location.href = "index.html";
+  window.history.back();
 }
 
 // ── Run ────────────────────────────────────────────────────

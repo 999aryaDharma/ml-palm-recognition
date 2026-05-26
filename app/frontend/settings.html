@@ -38,7 +38,8 @@
 
           <div class="form-group">
             <label for="threshold-slider">
-              Match Threshold: <span id="threshold-value" class="text-mono">0.70</span>
+              Match Threshold:
+              <span id="threshold-value" class="text-mono">0.70</span>
             </label>
             <input
               type="range"
@@ -56,14 +57,16 @@
           </div>
 
           <div class="form-group">
-             <label>Auto-Reset Delay</label>
-             <select id="reset-delay" class="select">
-                <option value="2000">2 Detik</option>
-                <option value="3000" selected>3 Detik</option>
-                <option value="5000">5 Detik</option>
-                <option value="10000">10 Detik</option>
-             </select>
-             <p class="form-hint">Lama waktu hasil scan ditampilkan sebelum scanner aktif kembali.</p>
+            <label>Auto-Reset Delay</label>
+            <select id="reset-delay" class="select">
+              <option value="2000">2 Detik</option>
+              <option value="3000" selected>3 Detik</option>
+              <option value="5000">5 Detik</option>
+              <option value="10000">10 Detik</option>
+            </select>
+            <p class="form-hint">
+              Lama waktu hasil scan ditampilkan sebelum scanner aktif kembali.
+            </p>
           </div>
         </section>
 
@@ -87,42 +90,39 @@
             </p>
           </div>
 
-          <hr style="border: 0; border-top: 1px solid var(--color-border); margin: var(--space-6) 0" />
+          <hr
+            style="
+              border: 0;
+              border-top: 1px solid var(--color-border);
+              margin: var(--space-6) 0;
+            "
+          />
 
           <div class="flex flex-col gap-4">
-             <button id="btn-seed-data" class="btn btn--secondary btn--full">
-                Seed Demo Data
-             </button>
-             <button id="btn-reset-data" class="btn btn--danger btn--full">
-                Reset Semua Data
-             </button>
-             <p class="text-xs text-center" style="color: var(--color-coffee-light)">
-                Reset data akan menghapus semua pengguna dan template biometrik.
-             </p>
+            <button id="btn-seed-data" class="btn btn--secondary btn--full">
+              Seed Demo Data
+            </button>
+            <button id="btn-reset-data" class="btn btn--danger btn--full">
+              Reset Semua Data
+            </button>
+            <p
+              class="text-xs text-center"
+              style="color: var(--color-coffee-light)"
+            >
+              Reset data akan menghapus semua pengguna dan template biometrik.
+            </p>
           </div>
         </section>
 
         <!-- Privacy & Info -->
         <section class="text-center" style="margin-top: var(--space-10)">
-           <p class="text-xs" style="color: var(--color-coffee-light)">
-              PalmID v0.5.0-beta <br>
-              Developed as Academic Project for ML Course 2026.
-           </p>
+          <p class="text-xs" style="color: var(--color-coffee-light)">
+            PalmID v0.5.0-beta <br />
+            Developed as Academic Project for ML Course 2026.
+          </p>
         </section>
       </div>
     </main>
-
-    <!-- Confirm Modal -->
-    <div id="confirm-modal" class="modal-backdrop hidden">
-       <div class="modal">
-          <h3 id="modal-title">Konfirmasi</h3>
-          <p id="modal-message">Apakah Anda yakin?</p>
-          <div class="modal-actions">
-             <button id="modal-cancel" class="btn btn--ghost">Batal</button>
-             <button id="modal-confirm" class="btn btn--danger">Hapus</button>
-          </div>
-       </div>
-    </div>
 
     <!-- Toast container -->
     <div id="toast-container"></div>
@@ -130,6 +130,7 @@
     <script type="module">
       import { mountNavbar } from "./js/components/navbar.js";
       import { toast } from "./js/components/toast.js";
+      import { showModal } from "./js/components/modal.js";
       import { apiFetch } from "./js/api/client.js";
 
       mountNavbar();
@@ -139,10 +140,6 @@
       const resetDelay = document.getElementById("reset-delay");
       const btnSeed = document.getElementById("btn-seed-data");
       const btnReset = document.getElementById("btn-reset-data");
-
-      const modal = document.getElementById("confirm-modal");
-      const modalConfirm = document.getElementById("modal-confirm");
-      const modalCancel = document.getElementById("modal-cancel");
 
       // Load initial
       const savedThreshold = localStorage.getItem("palm_threshold") || 0.7;
@@ -175,25 +172,23 @@
       });
 
       btnReset.addEventListener("click", () => {
-        document.getElementById("modal-title").textContent = "Reset Data";
-        document.getElementById("modal-message").textContent = "Ini akan menghapus SELURUH data user dan biometrik. Aksi ini tidak dapat dibatalkan.";
-        modalConfirm.className = "btn btn--danger";
-        modalConfirm.textContent = "Hapus Semua Data";
-        modal.classList.remove("hidden");
-
-        modalConfirm.onclick = async () => {
-          try {
-            await apiFetch("/seed-demo-data", { method: "DELETE" });
-            toast.success("Semua data telah dihapus.", "Reset Berhasil");
-          } catch (err) {
-            toast.error(err.message || "Gagal menghapus data.");
-          } finally {
-            modal.classList.add("hidden");
-          }
-        };
+        showModal({
+          title: "Reset Data",
+          message:
+            "Ini akan menghapus <strong>SELURUH</strong> data user dan biometrik. Aksi ini tidak dapat dibatalkan.",
+          icon: "⚠️",
+          confirmLabel: "Hapus Semua Data",
+          confirmVariant: "danger",
+          onConfirm: async () => {
+            try {
+              await apiFetch("/seed-demo-data", { method: "DELETE" });
+              toast.success("Semua data telah dihapus.", "Reset Berhasil");
+            } catch (err) {
+              toast.error(err.message || "Gagal menghapus data.");
+            }
+          },
+        });
       });
-
-      modalCancel.onclick = () => modal.classList.add("hidden");
     </script>
   </body>
 </html>

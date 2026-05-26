@@ -27,28 +27,52 @@
         <div class="page-header">
           <p class="eyebrow">DEMO MODULE</p>
           <h1>Access Control</h1>
-          <p>Demo otorisasi akses ruangan menggunakan identifikasi biometrik telapak tangan.</p>
+          <p>
+            Demo otorisasi akses ruangan menggunakan identifikasi biometrik
+            telapak tangan.
+          </p>
         </div>
 
         <div class="demo-grid">
-           <!-- Door Panel -->
-           <section class="surface-card text-center flex flex-col items-center justify-center" style="min-height: 400px">
-              <div id="door-icon" style="font-size: 6rem; margin-bottom: var(--space-6); transition: transform 0.5s ease">🔒</div>
-              <div id="door-status" class="badge badge--error" style="font-size: var(--text-body)">Terdaftar & Terkunci</div>
-              <p class="text-sm" style="margin-top: var(--space-6); max-width: 280px">
-                 Pindai telapak tangan untuk membuka kunci pintu area terbatas.
-              </p>
-           </section>
+          <!-- Door Panel -->
+          <section
+            class="surface-card text-center flex flex-col items-center justify-center"
+            style="min-height: 400px"
+          >
+            <div
+              id="door-icon"
+              style="
+                font-size: 6rem;
+                margin-bottom: var(--space-6);
+                transition: transform 0.5s ease;
+              "
+            >
+              🔒
+            </div>
+            <div
+              id="door-status"
+              class="badge badge--error"
+              style="font-size: var(--text-body)"
+            >
+              Terdaftar & Terkunci
+            </div>
+            <p
+              class="text-sm"
+              style="margin-top: var(--space-6); max-width: 280px"
+            >
+              Pindai telapak tangan untuk membuka kunci pintu area terbatas.
+            </p>
+          </section>
 
-           <!-- Scanner Panel -->
-           <section id="scanner-panel" class="flex flex-col gap-6">
-              <div class="scanner" id="scanner-container">
-                 <div class="scanner__placeholder">
-                    <span style="font-size: 3rem; opacity: 0.5">🚪</span>
-                    <p>Scanner standby...</p>
-                 </div>
+          <!-- Scanner Panel -->
+          <section id="scanner-panel" class="flex flex-col gap-6">
+            <div class="scanner" id="scanner-container">
+              <div class="scanner__placeholder">
+                <span style="font-size: 3rem; opacity: 0.5">🚪</span>
+                <p>Scanner standby...</p>
               </div>
-           </section>
+            </div>
+          </section>
         </div>
       </div>
     </main>
@@ -56,9 +80,6 @@
     <!-- Toast container -->
     <div id="toast-container"></div>
 
-    <script type="module">
-      import { mountNavbar } from "../js/components/navbar.js";
-      mountNavbar();
-    </script>
+    <script type="module" src="../js/pages/access.js"></script>
   </body>
 </html>

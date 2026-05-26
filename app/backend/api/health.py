@@ -5,9 +5,10 @@ router = APIRouter()
 
 @router.get("")
 def health(request: Request):
-    cache = getattr(request.app.state, "cache", None)
-    recognizer = getattr(request.app.state, "recognizer", None)
+    """Health check endpoint - returns status of backend services."""
     detector = getattr(request.app.state, "detector", None)
+    recognizer = getattr(request.app.state, "recognizer", None)
+    cache = getattr(request.app.state, "cache", None)
 
     return {
         "status": "ok",
