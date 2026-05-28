@@ -1,181 +1,226 @@
 // ============================================================
-// js/pages/patient.js — Palm Patient Check-in demo logic
+// js/pages/patient.js — Patient Check-in demo
+// Full implementation: scanner → patient card → confirm check-in
 // ============================================================
 
 import { mountNavbar } from "../components/navbar.js";
 import { PalmScanner } from "../components/palm-scanner.js";
-import { patientCheckin } from "../api/demos.js";
+import { DiagnosticTerminal } from "../components/terminal.js";
 import { showModal } from "../components/modal.js";
 import { toast } from "../components/toast.js";
-import { logTimestamp } from "../utils.js";
+import { apiFetch } from "../api/client.js";
+import { maskString } from "../utils.js";
 
 // ── State ──────────────────────────────────────────────────
 let scanner = null;
-let isCheckingIn = false;
-const HOSPITAL_ID = "rumahsakit-01";
+let terminal = null;
+let isProcessing = false;
+let pendingUser = null;
+let pendingPatient = null;
 
-// ── DOM Elements ───────────────────────────────────────────
+// ── DOM ────────────────────────────────────────────────────
 const scannerContainer = document.getElementById("scanner-container");
-const btnStartPatient = document.getElementById("btn-start-patient");
+const scannerVideo = document.getElementById("scanner-video");
+const scannerHint = document.getElementById("scanner-hint");
+const scannerResult = document.getElementById("scanner-result");
+const scannerPlaceholder = document.getElementById("scanner-placeholder");
 const terminalBody = document.getElementById("terminal-body");
-const checkoutPanel = document.getElementById("checkout-panel");
-const receiptPanel = document.getElementById("receipt-panel");
+const patientPanel = document.getElementById("patient-panel");
+const btnStartScan = document.getElementById("btn-start-scan");
+const btnConfirmCheckin = document.getElementById("btn-confirm-checkin");
 
-// ── Initialization ─────────────────────────────────────────
+// ── Init ───────────────────────────────────────────────────
 function init() {
   mountNavbar();
 
-  // Setup PalmScanner
+  terminal = new DiagnosticTerminal(terminalBody);
+  terminal.addLog("CAMERA_READY", "Patient check-in system initialized.");
+
   scanner = new PalmScanner({
     containerEl: scannerContainer,
-    videoEl: document.getElementById("scanner-video"),
-    hintEl: document.getElementById("scanner-hint"),
-    resultEl: document.getElementById("scanner-result"),
-    placeholderEl: document.getElementById("scanner-placeholder"),
-    logFn: addLog,
+    videoEl: scannerVideo,
+    hintEl: scannerHint,
+    resultEl: scannerResult,
+    placeholderEl: scannerPlaceholder,
+    logFn: (tag, msg) => terminal.addLog(tag, msg),
     onIdentified: handleIdentified,
     onUnknown: (score) => {
-      toast.warning(
-        "Pasien tidak dikenali. Silakan hubungi resepsionis.",
-        "Gagal",
-      );
+      terminal.addLog("RESULT", `UNKNOWN — score ${score.toFixed(4)}`);
+      toast.warning("Pasien tidak dikenali. Silakan hubungi resepsionis.");
+      showPatientNotFound();
     },
+    autoResetMs: 5000,
   });
 
-  btnStartPatient.addEventListener("click", () => {
-    scanner.start();
-    btnStartPatient.disabled = true;
-    btnStartPatient.innerHTML = `<span class="spinner spinner--sm"></span> Menunggu Scan...`;
-    addLog(
-      "SYSTEM",
-      "Patient check-in mode activated. Waiting for palm scan...",
-    );
-  });
+  btnStartScan?.addEventListener("click", startScanner);
+  btnConfirmCheckin?.addEventListener("click", confirmCheckin);
 
-  // Cleanup on page leave
-  window.addEventListener("beforeunload", () => {
-    if (scanner) scanner.stop();
-  });
+  window.addEventListener("beforeunload", () => scanner?.stop());
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden && scanner) scanner.stop();
+    if (document.hidden) scanner?.stop();
   });
-
-  addLog("SYSTEM", "Ready for patient check-in.");
 }
 
-/**
- * Handle successful biometric identification
- */
+async function startScanner() {
+  if (btnStartScan) {
+    btnStartScan.disabled = true;
+    btnStartScan.innerHTML = `<span class="spinner spinner--sm"></span> Scanning…`;
+  }
+  clearPatientCard();
+  terminal.addLog("SYSTEM", "Patient scanner started.");
+  await scanner.start();
+}
+
+// ── Identification callback ────────────────────────────────
 async function handleIdentified(user, score, latency) {
-  if (isCheckingIn) return;
+  if (isProcessing) return;
+  isProcessing = true;
 
-  addLog(
-    "PATIENT",
-    `Patient ${user.name} identified with score ${score.toFixed(4)}`,
-  );
-
-  showModal({
-    title: "Konfirmasi Check-in Pasien",
-    message: `
-      <div class="flex flex-col gap-4">
-        <p>Daftar check-in untuk pasien:</p>
-        <div class="surface-card-warm flex items-center gap-4" style="padding: var(--space-4)">
-          <div class="user-avatar" style="width: 40px; height: 40px; font-size: 1rem">${user.name[0]}</div>
-          <div>
-            <div style="font-weight: 600">${user.name}</div>
-            <div class="text-xs text-muted">ID: #${user.id} · Match: ${(score * 100).toFixed(1)}%</div>
-          </div>
-        </div>
-        <p class="text-sm">Waktu check-in: <strong>${new Date().toLocaleTimeString("id-ID")}</strong></p>
-      </div>
-    `,
-    icon: "🏥",
-    confirmLabel: "Konfirmasi Check-in",
-    confirmVariant: "success",
-    onConfirm: () => processCheckin(user),
-    onCancel: () => {
-      addLog("SYSTEM", "Patient check-in cancelled.");
-      scanner.resume();
-    },
-  });
-}
-
-/**
- * Finalize patient check-in with API call
- */
-async function processCheckin(user) {
-  isCheckingIn = true;
-  addLog("API_POST", `/demos/patient/checkin (user_id: ${user.id})`);
+  terminal.addLog("MATCHING", `${user.name} — score ${score.toFixed(4)}`);
+  scanner.stop();
 
   try {
-    const result = await patientCheckin(user.id);
+    const result = await apiFetch("/demos/patient/checkin", {
+      method: "POST",
+      body: JSON.stringify({ user_id: user.id, match_score: score }),
+    });
 
-    addLog("RESULT", "Patient check-in recorded successfully.");
-
-    // UI Transition
-    checkoutPanel.classList.add("hidden");
-    showReceipt(user, result);
-    toast.success("Check-in pasien berhasil dicatat.", "Sukses");
-
-    // Stop camera
-    scanner.stop();
+    terminal.addLog("RESULT", `PATIENT FOUND — ${user.name}`);
+    pendingUser = result.user;
+    pendingPatient = result.patient;
+    showPatientCard(result.user, result.patient, score);
+    if (btnConfirmCheckin) btnConfirmCheckin.classList.remove("hidden");
   } catch (err) {
-    addLog("ERROR", err.message || "Failed to record check-in");
-    toast.error("Gagal mencatat check-in. Silakan coba lagi.");
-    scanner.resume();
+    terminal.addLog("ERROR", err.message);
+    toast.error("Gagal mengambil data pasien.");
   } finally {
-    isCheckingIn = false;
+    isProcessing = false;
+    resetStartButton();
   }
 }
 
-/**
- * Display patient check-in receipt
- */
-function showReceipt(user, result) {
-  receiptPanel.classList.remove("hidden");
+// ── Patient card ───────────────────────────────────────────
+function showPatientCard(user, patient, score) {
+  if (!patientPanel) return;
 
-  const now = new Date();
-  document.getElementById("receipt-txn-id").textContent =
-    "PAT-" + Date.now().toString().slice(-6);
-  document.getElementById("receipt-date").textContent =
-    now.toLocaleString("id-ID");
-  document.getElementById("receipt-user").textContent = user.name;
-  document.getElementById("receipt-amount").textContent =
-    "Check-in " + now.toLocaleTimeString("id-ID");
+  patientPanel.innerHTML = `
+    <div class="patient-card">
+      <div class="patient-header">
+        <div style="width:56px;height:56px;border-radius:12px;background:var(--color-coffee);display:flex;align-items:center;justify-content:center;font-family:var(--font-heading);font-size:1.5rem;color:white;flex-shrink:0">
+          ${escHtml(user.name[0])}
+        </div>
+        <div>
+          <div style="font-family:var(--font-heading);font-size:1.2rem;font-weight:700">${escHtml(user.name)}</div>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <span class="badge badge--identified"><span class="status-dot"></span>Teridentifikasi</span>
+            <span style="font-family:monospace;font-size:11px;color:var(--color-coffee-light)">Score: ${score.toFixed(4)}</span>
+          </div>
+        </div>
+      </div>
 
-  document.getElementById("btn-finish").onclick = () => {
-    window.location.reload();
-  };
-}
+      <div class="patient-meta">
+        <div>
+          <div class="patient-field-label">NIK</div>
+          <div class="patient-field-value" style="font-family:monospace">${escHtml(patient.nik)}</div>
+        </div>
+        <div>
+          <div class="patient-field-label">No. Rekam Medik</div>
+          <div class="patient-field-value" style="font-family:monospace">${escHtml(patient.rekam_medik)}</div>
+        </div>
+        <div>
+          <div class="patient-field-label">Dokter PJ</div>
+          <div class="patient-field-value">${escHtml(patient.dokter)}</div>
+        </div>
+        <div>
+          <div class="patient-field-label">Jadwal</div>
+          <div class="patient-field-value">${escHtml(patient.jadwal)}</div>
+        </div>
+        <div>
+          <div class="patient-field-label">Kunjungan Terakhir</div>
+          <div class="patient-field-value">${escHtml(patient.last_visit)}</div>
+        </div>
+        <div>
+          <div class="patient-field-label">Waktu Check-in</div>
+          <div class="patient-field-value">${new Date().toLocaleTimeString("id-ID")}</div>
+        </div>
+      </div>
 
-/**
- * Utility to add a log line to the terminal
- */
-function addLog(tag, msg) {
-  const line = document.createElement("div");
-  line.className = "log-line";
-  line.innerHTML = `
-    <span class="log-time">[${logTimestamp()}]</span>
-    <span class="log-tag log-tag--${mapTagToClass(tag)}">${tag}</span>
-    <span class="log-msg">${msg}</span>
+      <div class="hint-box hint-box--info" style="margin-top:16px">
+        <p class="text-xs">Periksa data pasien lalu klik <strong>Konfirmasi Check-in</strong> untuk menyelesaikan proses.</p>
+      </div>
+    </div>
   `;
-  terminalBody.appendChild(line);
-  terminalBody.scrollTop = terminalBody.scrollHeight;
 }
 
-/**
- * Map tag to CSS class name
- */
-function mapTagToClass(tag) {
-  const mapping = {
-    SYSTEM: "camera",
-    PATIENT: "detect",
-    API_POST: "match",
-    RESULT: "result",
-    ERROR: "error",
-  };
-  return mapping[tag] || "camera";
+function showPatientNotFound() {
+  if (!patientPanel) return;
+  patientPanel.innerHTML = `
+    <div style="text-align:center;padding:40px 20px">
+      <div style="font-size:3rem;margin-bottom:16px">❌</div>
+      <h3 style="color:var(--color-coral)">Pasien Tidak Dikenali</h3>
+      <p class="text-sm" style="margin-top:8px">Silakan hubungi petugas resepsionis untuk proses manual.</p>
+    </div>
+  `;
 }
 
-// ── Run ────────────────────────────────────────────────────
+function clearPatientCard() {
+  if (!patientPanel) return;
+  patientPanel.innerHTML = `
+    <div style="text-align:center;padding:40px 20px;opacity:0.4">
+      <div style="font-size:3rem;margin-bottom:12px">🏥</div>
+      <p>Pindai telapak tangan pasien untuk melihat data rekam medis.</p>
+    </div>
+  `;
+  if (btnConfirmCheckin) btnConfirmCheckin.classList.add("hidden");
+  pendingUser = null;
+  pendingPatient = null;
+}
+
+async function confirmCheckin() {
+  if (!pendingUser) return;
+
+  showModal({
+    title: "Konfirmasi Check-in Pasien",
+    icon: "✅",
+    message: `Check-in untuk <strong>${escHtml(pendingUser.name)}</strong> pada ${new Date().toLocaleString("id-ID")} akan dicatat ke sistem.`,
+    confirmLabel: "Konfirmasi Check-in",
+    confirmVariant: "success",
+    onConfirm: async () => {
+      toast.success(
+        `Check-in pasien ${pendingUser.name} berhasil.`,
+        "Berhasil",
+      );
+      terminal.addLog("RESULT", `CHECK-IN CONFIRMED — ${pendingUser.name}`);
+      if (btnConfirmCheckin) btnConfirmCheckin.classList.add("hidden");
+
+      // Reset after 2s
+      setTimeout(() => {
+        clearPatientCard();
+        resetStartButton();
+      }, 2000);
+    },
+  });
+}
+
+function resetStartButton() {
+  if (btnStartScan) {
+    btnStartScan.disabled = false;
+    btnStartScan.textContent = "Pindai Pasien";
+  }
+}
+
+function escHtml(s) {
+  return String(s).replace(
+    /[&<>"']/g,
+    (c) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      })[c],
+  );
+}
+
 init();

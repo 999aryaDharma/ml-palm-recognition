@@ -1,75 +1,77 @@
-"""
-Demo Schemas
-Pydantic models for demo module requests and responses
-"""
+from pydantic import BaseModel, Field
+from datetime import datetime
+from typing import Optional
 
-from pydantic import BaseModel
 
+# ── Payment ───────────────────────────────────────────────────────────────────
 
 class PaymentPayRequest(BaseModel):
-    """Request body for payment demo."""
     user_id: int
-    amount: float
-    merchant: str
+    amount: int = Field(..., ge=1)
+    merchant: str = "Toko Maju Jaya"
+    match_score: float = 0.0
 
 
 class PaymentPayResponse(BaseModel):
-    """Response for payment demo."""
-    transaction_id: str
-    amount: float
-    merchant: str
     status: str
+    transaction_id: str
+    user: dict
+    amount: int
+    merchant: str
+    timestamp: datetime
 
+
+# ── Attendance ────────────────────────────────────────────────────────────────
 
 class AttendanceCheckinRequest(BaseModel):
-    """Request body for attendance check-in."""
     user_id: int
-    location: str
+    mode: str = Field(default="checkin", pattern="^(checkin|checkout)$")
+    match_score: float = 0.0
 
 
 class AttendanceCheckinResponse(BaseModel):
-    """Response for attendance check-in."""
     status: str
-    location: str
-    user_id: int
+    user: dict
+    mode: str
+    timestamp: datetime
 
 
-class AccessCheckRequest(BaseModel):
-    """Request body for access control check."""
-    user_id: int
-    door_id: str
-
+# ── Access Control ────────────────────────────────────────────────────────────
 
 class AccessCheckResponse(BaseModel):
-    """Response for access control check."""
-    status: str
-    door_id: str
-    user_id: int
+    status: str          # "granted" | "denied"
+    user: Optional[dict] = None
+    score: float
+    latency_ms: int
+    reason: str          # "authorized" | "not_authorized" | "unknown_user"
 
+
+class AuthorizedUserResponse(BaseModel):
+    user_id: int
+    name: str
+    authorized: bool
+
+
+# ── Patient ───────────────────────────────────────────────────────────────────
 
 class PatientCheckinRequest(BaseModel):
-    """Request body for patient check-in."""
     user_id: int
-    hospital_id: str
+    match_score: float = 0.0
 
 
 class PatientCheckinResponse(BaseModel):
-    """Response for patient check-in."""
     status: str
-    hospital_id: str
-    user_id: int
+    user: dict
+    patient: dict
+    timestamp: datetime
 
 
-class DemoLog(BaseModel):
-    """Demo log entry."""
+# ── Demo Logs ─────────────────────────────────────────────────────────────────
+
+class DemoLogResponse(BaseModel):
     id: int
-    user_id: int | None
+    user: Optional[dict] = None
     demo_type: str
+    timestamp: datetime
     match_score: float
-    timestamp: str
-
-
-class DemoLogsResponse(BaseModel):
-    """Response for demo logs query."""
-    logs: list[DemoLog]
-    total: int
+    payload: dict

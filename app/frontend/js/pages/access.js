@@ -1,173 +1,258 @@
 // ============================================================
-// js/pages/access.js — Palm Access Control demo logic
+// js/pages/access.js — Access Control demo
+// Full implementation: door animation, authorized panel, scanner
 // ============================================================
 
 import { mountNavbar } from "../components/navbar.js";
 import { PalmScanner } from "../components/palm-scanner.js";
-import { accessCheck } from "../api/demos.js";
-import { showModal } from "../components/modal.js";
+import { DiagnosticTerminal } from "../components/terminal.js";
 import { toast } from "../components/toast.js";
-import { logTimestamp } from "../utils.js";
+import { apiFetch } from "../api/client.js";
+import { getUsers } from "../api/users.js";
 
 // ── State ──────────────────────────────────────────────────
 let scanner = null;
-let isProcessingAccess = false;
-const DOOR_ID = "door-01-secured";
+let terminal = null;
+let isProcessing = false;
 
-// ── DOM Elements ───────────────────────────────────────────
+// ── DOM ────────────────────────────────────────────────────
 const scannerContainer = document.getElementById("scanner-container");
-const btnStartAccess = document.getElementById("btn-start-access");
+const scannerVideo = document.getElementById("scanner-video");
+const scannerHint = document.getElementById("scanner-hint");
+const scannerResult = document.getElementById("scanner-result");
+const scannerPlaceholder = document.getElementById("scanner-placeholder");
 const terminalBody = document.getElementById("terminal-body");
-const checkoutPanel = document.getElementById("checkout-panel");
-const receiptPanel = document.getElementById("receipt-panel");
+const doorPanel = document.getElementById("door-panel");
+const doorStatus = document.getElementById("door-status");
+const doorIcon = document.getElementById("door-icon");
+const authorizedList = document.getElementById("authorized-list");
+const btnStartScan = document.getElementById("btn-start-scan");
+const accessLog = document.getElementById("access-log");
 
-// ── Initialization ─────────────────────────────────────────
+// ── Init ───────────────────────────────────────────────────
 function init() {
   mountNavbar();
 
-  // Setup PalmScanner
+  terminal = new DiagnosticTerminal(terminalBody);
+  terminal.addLog("CAMERA_READY", "Access control system initialized.");
+
   scanner = new PalmScanner({
     containerEl: scannerContainer,
-    videoEl: document.getElementById("scanner-video"),
-    hintEl: document.getElementById("scanner-hint"),
-    resultEl: document.getElementById("scanner-result"),
-    placeholderEl: document.getElementById("scanner-placeholder"),
-    logFn: addLog,
+    videoEl: scannerVideo,
+    hintEl: scannerHint,
+    resultEl: scannerResult,
+    placeholderEl: scannerPlaceholder,
+    logFn: (tag, msg) => terminal.addLog(tag, msg),
     onIdentified: handleIdentified,
     onUnknown: (score) => {
-      toast.warning("Akses ditolak. Pengguna tidak dikenali.", "Ditolak");
+      terminal.addLog("RESULT", `UNKNOWN — score ${score.toFixed(4)}`);
+      triggerAccessDenied("Unknown user", score);
     },
+    autoResetMs: 4000,
   });
 
-  btnStartAccess.addEventListener("click", () => {
-    scanner.start();
-    btnStartAccess.disabled = true;
-    btnStartAccess.innerHTML = `<span class="spinner spinner--sm"></span> Menunggu Scan...`;
-    addLog("SYSTEM", "Access control mode activated. Waiting for palm scan...");
-  });
+  btnStartScan?.addEventListener("click", startScanner);
+  loadAuthorizedPanel();
 
-  // Cleanup on page leave
-  window.addEventListener("beforeunload", () => {
-    if (scanner) scanner.stop();
-  });
+  window.addEventListener("beforeunload", () => scanner?.stop());
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden && scanner) scanner.stop();
+    if (document.hidden) scanner?.stop();
   });
-
-  addLog("SYSTEM", "Ready for access control.");
 }
 
-/**
- * Handle successful biometric identification
- */
+async function startScanner() {
+  if (btnStartScan) {
+    btnStartScan.disabled = true;
+    btnStartScan.innerHTML = `<span class="spinner spinner--sm"></span> Scanning…`;
+  }
+  terminal.addLog("SYSTEM", "Access scanner activated.");
+  await scanner.start();
+}
+
+// ── Identification callback ────────────────────────────────
 async function handleIdentified(user, score, latency) {
-  if (isProcessingAccess) return;
+  if (isProcessing) return;
+  isProcessing = true;
 
-  addLog(
-    "ACCESS",
-    `User ${user.name} identified with score ${score.toFixed(4)}`,
-  );
-
-  showModal({
-    title: "Konfirmasi Akses",
-    message: `
-      <div class="flex flex-col gap-4">
-        <p>Memberikan akses ke pintu: <strong>${DOOR_ID.toUpperCase()}</strong></p>
-        <div class="surface-card-warm flex items-center gap-4" style="padding: var(--space-4)">
-          <div class="user-avatar" style="width: 40px; height: 40px; font-size: 1rem">${user.name[0]}</div>
-          <div>
-            <div style="font-weight: 600">${user.name}</div>
-            <div class="text-xs text-muted">ID: #${user.id} · Match: ${(score * 100).toFixed(1)}%</div>
-          </div>
-        </div>
-      </div>
-    `,
-    icon: "🔓",
-    confirmLabel: "Buka Akses",
-    confirmVariant: "success",
-    onConfirm: () => processAccess(user),
-    onCancel: () => {
-      addLog("SYSTEM", "Access request cancelled.");
-      scanner.resume();
-    },
-  });
-}
-
-/**
- * Finalize access check with API call
- */
-async function processAccess(user) {
-  isProcessingAccess = true;
-  addLog("API_POST", `/demos/access/check (user_id: ${user.id})`);
+  terminal.addLog("MATCHING", `${user.name} — score ${score.toFixed(4)}`);
 
   try {
-    const result = await accessCheck(user.id, DOOR_ID);
+    // Check authorization via backend (or check local list for speed)
+    const result = await apiFetch("/demos/access/authorized");
+    const record = result.find((r) => r.user_id === user.id);
+    const authorized = record?.authorized ?? false;
 
-    addLog("RESULT", "Access GRANTED to " + DOOR_ID);
+    terminal.addLog(
+      "RESULT",
+      authorized
+        ? `ACCESS GRANTED — ${user.name}`
+        : `ACCESS DENIED — ${user.name} (not authorized)`,
+    );
 
-    // UI Transition
-    checkoutPanel.classList.add("hidden");
-    showReceipt(user, result);
-    toast.success("Akses diberikan.", "Sukses");
+    if (authorized) {
+      triggerAccessGranted(user, score);
+    } else {
+      triggerAccessDenied(user.name, score, "not_authorized");
+    }
 
-    // Stop camera
-    scanner.stop();
+    // Log to backend
+    apiFetch("/demo-logs", {
+      method: "POST",
+      body: JSON.stringify({
+        user_id: user.id,
+        demo_type: "access",
+        match_score: score,
+        payload: {
+          granted: authorized,
+          reason: authorized ? "authorized" : "not_authorized",
+        },
+      }),
+    }).catch(() => {});
+
+    addAccessLogEntry(user.name, authorized, score);
   } catch (err) {
-    addLog("ERROR", err.message || "Failed to grant access");
-    toast.error("Gagal memberikan akses. Silakan coba lagi.");
-    scanner.resume();
+    terminal.addLog("ERROR", err.message);
+    toast.error("Gagal memeriksa otorisasi.");
   } finally {
-    isProcessingAccess = false;
+    isProcessing = false;
+    setTimeout(() => resetDoor(), 3000);
+    resetStartButton();
   }
 }
 
-/**
- * Display access receipt
- */
-function showReceipt(user, result) {
-  receiptPanel.classList.remove("hidden");
-
-  const now = new Date();
-  document.getElementById("receipt-txn-id").textContent =
-    "ACC-" + Date.now().toString().slice(-6);
-  document.getElementById("receipt-date").textContent =
-    now.toLocaleString("id-ID");
-  document.getElementById("receipt-user").textContent = user.name;
-  document.getElementById("receipt-amount").textContent = DOOR_ID.toUpperCase();
-
-  document.getElementById("btn-finish").onclick = () => {
-    window.location.reload();
-  };
+// ── Door animation ─────────────────────────────────────────
+function triggerAccessGranted(user, score) {
+  setDoorState(
+    "unlocked",
+    `🔓 Access Granted — ${escHtml(user.name)}`,
+    "matcha",
+  );
+  doorPanel?.classList.add("door--open");
+  toast.success(`Akses diberikan: ${user.name}`, "Access Granted");
 }
 
-/**
- * Utility to add a log line to the terminal
- */
-function addLog(tag, msg) {
-  const line = document.createElement("div");
-  line.className = "log-line";
-  line.innerHTML = `
-    <span class="log-time">[${logTimestamp()}]</span>
-    <span class="log-tag log-tag--${mapTagToClass(tag)}">${tag}</span>
-    <span class="log-msg">${msg}</span>
+function triggerAccessDenied(name, score, reason = "unknown") {
+  const msg =
+    reason === "not_authorized"
+      ? `🔒 Access Denied — ${escHtml(name)} (tidak diotorisasi)`
+      : `🔒 Access Denied — Pengguna tidak dikenali`;
+  setDoorState("locked", msg, "coral");
+  doorPanel?.classList.remove("door--open");
+  toast.error(
+    reason === "not_authorized"
+      ? `Akses ditolak: ${name} tidak diotorisasi.`
+      : "Pengguna tidak dikenali.",
+  );
+}
+
+function setDoorState(state, labelText, color) {
+  if (doorStatus) {
+    doorStatus.textContent = labelText;
+    doorStatus.className = `door-status door-status--${state}`;
+  }
+  if (doorIcon) {
+    doorIcon.textContent = state === "unlocked" ? "🔓" : "🔒";
+  }
+}
+
+function resetDoor() {
+  if (doorStatus) {
+    doorStatus.textContent = "🔒 Terdaftar & Terkunci";
+    doorStatus.className = "door-status door-status--locked";
+  }
+  if (doorIcon) doorIcon.textContent = "🔒";
+  doorPanel?.classList.remove("door--open");
+}
+
+// ── Authorized panel ───────────────────────────────────────
+async function loadAuthorizedPanel() {
+  if (!authorizedList) return;
+  try {
+    const [users, authorized] = await Promise.all([
+      getUsers(),
+      apiFetch("/demos/access/authorized"),
+    ]);
+    const authMap = Object.fromEntries(
+      authorized.map((a) => [a.user_id, a.authorized]),
+    );
+
+    if (users.length === 0) {
+      authorizedList.innerHTML = `<p class="text-xs text-muted">Belum ada pengguna terdaftar.</p>`;
+      return;
+    }
+
+    authorizedList.innerHTML = users
+      .map(
+        (u) => `
+      <div class="authorized-row" style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--color-border)">
+        <span style="font-size:13px;font-weight:500">${escHtml(u.name)}</span>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" data-uid="${u.id}" ${authMap[u.id] ? "checked" : ""}
+            style="width:16px;height:16px;accent-color:var(--color-matcha)" />
+          <span style="font-size:11px;color:var(--color-coffee-light)">${authMap[u.id] ? "Diotorisasi" : "Ditolak"}</span>
+        </label>
+      </div>
+    `,
+      )
+      .join("");
+
+    // Toggle handler
+    authorizedList.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+      cb.addEventListener("change", async () => {
+        const uid = Number(cb.dataset.uid);
+        const auth = cb.checked;
+        const span = cb.nextElementSibling;
+        try {
+          await apiFetch(`/demos/access/authorized/${uid}?authorized=${auth}`, {
+            method: "PUT",
+          });
+          if (span) span.textContent = auth ? "Diotorisasi" : "Ditolak";
+          terminal.addLog("SYSTEM", `User #${uid} authorization → ${auth}`);
+        } catch {
+          cb.checked = !auth;
+          toast.error("Gagal memperbarui otorisasi.");
+        }
+      });
+    });
+  } catch {
+    authorizedList.innerHTML = `<p class="text-xs" style="color:var(--color-coral)">Gagal memuat daftar.</p>`;
+  }
+}
+
+// ── Access log ─────────────────────────────────────────────
+function addAccessLogEntry(name, granted, score) {
+  if (!accessLog) return;
+  const entry = document.createElement("div");
+  entry.style.cssText =
+    "display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--color-border);font-size:12px";
+  entry.innerHTML = `
+    <span style="padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:${granted ? "var(--color-matcha-soft)" : "var(--color-coral-soft)"};color:${granted ? "var(--color-matcha)" : "var(--color-coral)"}">${granted ? "GRANTED" : "DENIED"}</span>
+    <span style="flex:1">${escHtml(name)}</span>
+    <span style="font-family:monospace;color:var(--color-coffee-light)">${score.toFixed(3)}</span>
+    <span style="color:var(--color-coffee-light)">${new Date().toLocaleTimeString("id-ID")}</span>
   `;
-  terminalBody.appendChild(line);
-  terminalBody.scrollTop = terminalBody.scrollHeight;
+  accessLog.insertBefore(entry, accessLog.firstChild);
 }
 
-/**
- * Map tag to CSS class name
- */
-function mapTagToClass(tag) {
-  const mapping = {
-    SYSTEM: "camera",
-    ACCESS: "detect",
-    API_POST: "match",
-    RESULT: "result",
-    ERROR: "error",
-  };
-  return mapping[tag] || "camera";
+function resetStartButton() {
+  if (btnStartScan) {
+    btnStartScan.disabled = false;
+    btnStartScan.textContent = "Mulai Scan";
+  }
 }
 
-// ── Run ────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(
+    /[&<>"']/g,
+    (c) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      })[c],
+  );
+}
+
 init();

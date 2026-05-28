@@ -1,0 +1,40 @@
+# Palm Biometric ML Pipeline - Pinned Dependencies
+# Python 3.10 recommended
+#
+# Install PyTorch with CUDA (sesuai workflow doc):
+#   pip install torch==2.2.0 torchvision==0.17.0 --index-url https://download.pytorch.org/whl/cu118
+# Kemudian install sisanya:
+#   pip install -r requirements.txt
+
+# --- Deep Learning ---
+# torch dan torchvision di-install via index-url, BUKAN dari sini
+# (lihat README untuk perintah install)
+
+# --- Computer Vision ---
+mediapipe==0.10.9
+opencv-python==4.9.0.80
+Pillow==10.2.0
+albumentations==1.3.1
+
+# --- Data Science ---
+numpy==1.26.3
+pandas==2.2.0
+scikit-learn==1.4.0
+scipy==1.12.0
+
+# --- Visualization ---
+matplotlib==3.8.2
+seaborn==0.13.2
+
+# --- Training Infrastructure ---
+tensorboard==2.16.2
+tqdm==4.66.1
+
+# --- Notebooks ---
+jupyter==1.0.0
+ipykernel==6.29.0
+
+# --- Optional: TFLite export (Phase M4 bonus) ---
+# tensorflow==2.15.0
+# onnx==1.15.0
+# onnx-tf==1.10.0

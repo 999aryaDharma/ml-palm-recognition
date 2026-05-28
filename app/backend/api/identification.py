@@ -1,8 +1,7 @@
-from fastapi import APIRouter, Request, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, Request, UploadFile, File, HTTPException
 from sqlalchemy.orm import Session
-
+from fastapi import Depends
 from db.database import get_db
-from db.models import User
 from schemas.identification import IdentifyResponse, IdentifiedUser
 from services.image_service import upload_to_pil
 from services.identification_service import IdentificationService
@@ -18,60 +17,47 @@ async def identify_palm(
 ):
     """
     Identify user from palm image.
-    
-    Args:
-        image: Palm image file upload
-        
-    Returns:
-        IdentifyResponse with status, user info, and match score
+
+    Returns identified user with score and latency, or unknown status.
+    HTTP 400 is raised for quality/detection errors with a structured error body.
     """
-    try:
-        # Validate and convert image
-        pil_image = await upload_to_pil(image, request.app.state.settings.max_upload_mb)
-        
-        # Create identification service
-        service = IdentificationService(request.app.state, db)
-        
-        # Perform identification
-        result, latency_ms = service.identify_palm(pil_image)
-        
-        # Build response
-        if result["status"] == "identified":
-            user = IdentifiedUser(
-                id=result["user_id"],
-                name=result["user_name"]
-            )
-            return IdentifyResponse(
-                status=result["status"],
-                user=user,
-                score=round(result["score"], 4),
-                latency_ms=latency_ms
-            )
-        elif result["status"] == "unknown":
-            return IdentifyResponse(
-                status="unknown",
-                user=None,
-                score=round(result["score"], 4),
-                latency_ms=latency_ms
-            )
-        else:
-            # Error case
-            error_code = result.get("error_code", "unknown_error")
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": error_code,
-                    "message": f"Failed to process palm image: {error_code}"
-                }
-            )
-            
-    except HTTPException:
-        raise
-    except Exception as e:
+    pil_image = await upload_to_pil(image, request.app.state.settings.max_upload_mb)
+
+    service = IdentificationService(request.app.state, db)
+    result, latency_ms = service.identify_palm(pil_image)
+
+    # ML / quality failures surface as structured 400 errors
+    if result["status"] == "error":
         raise HTTPException(
-            status_code=500,
+            status_code=400,
             detail={
-                "error": "internal_server_error",
-                "message": f"Identification failed: {str(e)}"
-            }
+                "error": result.get("error_code", "detection_failed"),
+                "message": _error_message(result.get("error_code", "detection_failed")),
+            },
         )
+
+    user = None
+    if result["status"] == "identified":
+        user = IdentifiedUser(id=result["user_id"], name=result["user_name"])
+
+    return IdentifyResponse(
+        status=result["status"],
+        user=user,
+        score=round(result["score"], 4),
+        latency_ms=latency_ms,
+    )
+
+
+def _error_message(code: str) -> str:
+    messages = {
+        "no_hand_detected":     "Tunjukkan telapak tangan ke kamera.",
+        "detection_failed":     "Telapak belum terbaca. Pastikan tangan terlihat penuh.",
+        "landmarks_occluded":   "Pastikan seluruh jari dan telapak terlihat.",
+        "palm_facing_wrong":    "Hadapkan telapak tangan ke kamera.",
+        "hand_too_small":       "Dekatkan tangan ke kamera.",
+        "fingers_not_open":     "Buka jari sedikit lebih lebar.",
+        "image_too_blurry":     "Tahan tangan diam sebentar.",
+        "roi_extraction_failed":"Posisikan telapak di tengah frame.",
+        "no_templates_enrolled":"Belum ada template terdaftar. Lakukan enrollment terlebih dahulu.",
+    }
+    return messages.get(code, "Gagal memproses telapak. Coba lagi.")  

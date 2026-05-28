@@ -1,174 +1,195 @@
 // ============================================================
 // js/pages/attendance.js — Palm Attendance demo logic
+// Full implementation: check-in / check-out mode toggle
 // ============================================================
 
 import { mountNavbar } from "../components/navbar.js";
 import { PalmScanner } from "../components/palm-scanner.js";
-import { attendanceCheckin } from "../api/demos.js";
+import { DiagnosticTerminal } from "../components/terminal.js";
 import { showModal } from "../components/modal.js";
 import { toast } from "../components/toast.js";
-import { formatDate, logTimestamp } from "../utils.js";
+import { formatTime, formatDate, logTimestamp } from "../utils.js";
 
 // ── State ──────────────────────────────────────────────────
 let scanner = null;
-let isCheckingIn = false;
+let terminal = null;
+let currentMode = "checkin"; // "checkin" | "checkout"
+let isProcessing = false;
 
-// ── DOM Elements ───────────────────────────────────────────
+// ── DOM ────────────────────────────────────────────────────
 const scannerContainer = document.getElementById("scanner-container");
-const btnStartAttendance = document.getElementById("btn-start-attendance");
+const scannerVideo = document.getElementById("scanner-video");
+const scannerHint = document.getElementById("scanner-hint");
+const scannerResult = document.getElementById("scanner-result");
+const scannerPlaceholder = document.getElementById("scanner-placeholder");
 const terminalBody = document.getElementById("terminal-body");
-const checkoutPanel = document.getElementById("checkout-panel");
-const receiptPanel = document.getElementById("receipt-panel");
+const attendanceList = document.getElementById("attendance-list");
+const btnCheckin = document.getElementById("btn-mode-checkin");
+const btnCheckout = document.getElementById("btn-mode-checkout");
+const btnStartScan = document.getElementById("btn-start-scan");
+const modeLabel = document.getElementById("current-mode-label");
 
-// ── Initialization ─────────────────────────────────────────
+// ── Init ───────────────────────────────────────────────────
 function init() {
   mountNavbar();
 
-  // Setup PalmScanner
+  terminal = new DiagnosticTerminal(terminalBody);
+  terminal.addLog("CAMERA_READY", "Attendance system initialized.");
+
+  // Mode toggle
+  btnCheckin?.addEventListener("click", () => setMode("checkin"));
+  btnCheckout?.addEventListener("click", () => setMode("checkout"));
+
+  // Scanner init
   scanner = new PalmScanner({
     containerEl: scannerContainer,
-    videoEl: document.getElementById("scanner-video"),
-    hintEl: document.getElementById("scanner-hint"),
-    resultEl: document.getElementById("scanner-result"),
-    placeholderEl: document.getElementById("scanner-placeholder"),
-    logFn: addLog,
+    videoEl: scannerVideo,
+    hintEl: scannerHint,
+    resultEl: scannerResult,
+    placeholderEl: scannerPlaceholder,
+    logFn: (tag, msg) => terminal.addLog(tag, msg),
     onIdentified: handleIdentified,
     onUnknown: (score) => {
-      toast.warning("Pengguna tidak dikenali. Silakan coba lagi.", "Gagal");
+      toast.warning("Pengguna tidak dikenali. Coba scan ulang.");
+      terminal.addLog("RESULT", `UNKNOWN — score ${score.toFixed(4)}`);
     },
+    autoResetMs: 4000,
   });
 
-  btnStartAttendance.addEventListener("click", () => {
-    scanner.start();
-    btnStartAttendance.disabled = true;
-    btnStartAttendance.innerHTML = `<span class="spinner spinner--sm"></span> Menunggu Scan...`;
-    addLog("SYSTEM", "Attendance mode activated. Waiting for palm scan...");
-  });
+  btnStartScan?.addEventListener("click", startScanner);
 
-  // Cleanup on page leave
-  window.addEventListener("beforeunload", () => {
-    if (scanner) scanner.stop();
-  });
+  // Cleanup
+  window.addEventListener("beforeunload", () => scanner?.stop());
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden && scanner) scanner.stop();
+    if (document.hidden) scanner?.stop();
   });
-
-  addLog("SYSTEM", "Ready for attendance check-in.");
 }
 
-/**
- * Handle successful biometric identification
- */
-async function handleIdentified(user, score, latency) {
-  if (isCheckingIn) return;
+function setMode(mode) {
+  currentMode = mode;
+  if (modeLabel)
+    modeLabel.textContent = mode === "checkin" ? "Check-in" : "Check-out";
 
-  addLog(
-    "ATTENDANCE",
-    `User ${user.name} matched with score ${score.toFixed(4)}`,
+  btnCheckin?.classList.toggle("btn--primary", mode === "checkin");
+  btnCheckin?.classList.toggle("btn--secondary", mode !== "checkin");
+  btnCheckout?.classList.toggle("btn--primary", mode === "checkout");
+  btnCheckout?.classList.toggle("btn--secondary", mode !== "checkout");
+
+  terminal.addLog("SYSTEM", `Mode switched to ${mode.toUpperCase()}`);
+}
+
+async function startScanner() {
+  if (btnStartScan) {
+    btnStartScan.disabled = true;
+    btnStartScan.innerHTML = `<span class="spinner spinner--sm"></span> Scanning…`;
+  }
+  terminal.addLog("SYSTEM", "Attendance scanner started.");
+  await scanner.start();
+}
+
+// ── Handle identification ──────────────────────────────────
+async function handleIdentified(user, score, latency) {
+  if (isProcessing) return;
+  isProcessing = true;
+
+  terminal.addLog(
+    "MATCHING",
+    `${user.name} score ${score.toFixed(4)} latency ${latency}ms`,
   );
 
+  const modeLabel = currentMode === "checkin" ? "Check-in" : "Check-out";
+  const modeIcon = currentMode === "checkin" ? "📋" : "🚪";
+
   showModal({
-    title: "Konfirmasi Kehadiran",
+    title: `Konfirmasi ${modeLabel}`,
+    icon: modeIcon,
     message: `
       <div class="flex flex-col gap-4">
-        <p>Catatan kehadiran untuk:</p>
-        <div class="surface-card-warm flex items-center gap-4" style="padding: var(--space-4)">
-          <div class="user-avatar" style="width: 40px; height: 40px; font-size: 1rem">${user.name[0]}</div>
+        <p>Catat <strong>${modeLabel}</strong> untuk:</p>
+        <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--color-surface-warm);border-radius:12px;border:1px solid var(--color-border)">
+          <div style="width:40px;height:40px;border-radius:8px;background:var(--color-coffee);display:flex;align-items:center;justify-content:center;color:white;font-weight:700">${user.name[0]}</div>
           <div>
-            <div style="font-weight: 600">${user.name}</div>
-            <div class="text-xs text-muted">ID: #${user.id} · Match: ${(score * 100).toFixed(1)}%</div>
+            <div style="font-weight:600">${escHtml(user.name)}</div>
+            <div style="font-size:12px;color:var(--color-coffee-light)">Score: ${(score * 100).toFixed(1)}% · ${latency}ms</div>
           </div>
         </div>
         <p class="text-sm">Waktu: <strong>${new Date().toLocaleTimeString("id-ID")}</strong></p>
       </div>
     `,
-    icon: "📋",
-    confirmLabel: "Konfirmasi Kehadiran",
-    confirmVariant: "success",
-    onConfirm: () => processCheckin(user),
+    confirmLabel: `Konfirmasi ${modeLabel}`,
+    confirmVariant: currentMode === "checkin" ? "success" : "primary",
+    onConfirm: () => submitAttendance(user, score),
     onCancel: () => {
-      addLog("SYSTEM", "Check-in cancelled by user.");
+      isProcessing = false;
       scanner.resume();
     },
   });
 }
 
-/**
- * Finalize attendance with API call
- */
-async function processCheckin(user) {
-  isCheckingIn = true;
-  addLog("API_POST", `/demos/attendance/checkin (user_id: ${user.id})`);
-
+async function submitAttendance(user, score) {
   try {
-    const result = await attendanceCheckin(user.id, "checkin");
+    const { apiFetch } = await import("../api/client.js");
+    const result = await apiFetch("/demos/attendance/checkin", {
+      method: "POST",
+      body: JSON.stringify({
+        user_id: user.id,
+        mode: currentMode,
+        match_score: score,
+      }),
+    });
 
-    addLog("RESULT", "Attendance recorded successfully.");
-
-    // UI Transition
-    checkoutPanel.classList.add("hidden");
-    showReceipt(user, result);
-    toast.success("Kehadiran berhasil dicatat.", "Sukses");
-
-    // Stop camera as we are in receipt view
-    scanner.stop();
+    terminal.addLog(
+      "RESULT",
+      `${currentMode.toUpperCase()} recorded — ${user.name}`,
+    );
+    toast.success(
+      `${currentMode === "checkin" ? "Check-in" : "Check-out"} berhasil: ${user.name}`,
+    );
+    addAttendanceEntry(user, result);
   } catch (err) {
-    addLog("ERROR", err.message || "Failed to record attendance");
-    toast.error("Gagal mencatat kehadiran. Silakan coba lagi.");
-    scanner.resume();
+    terminal.addLog("ERROR", err.message);
+    toast.error("Gagal mencatat kehadiran. Coba lagi.");
   } finally {
-    isCheckingIn = false;
+    isProcessing = false;
+    scanner.resume();
+    resetStartButton();
   }
 }
 
-/**
- * Display attendance receipt
- */
-function showReceipt(user, result) {
-  receiptPanel.classList.remove("hidden");
+function addAttendanceEntry(user, result) {
+  // Remove empty state if present
+  const empty = attendanceList?.querySelector(".empty-state");
+  if (empty) empty.remove();
 
-  const now = new Date();
-  document.getElementById("receipt-txn-id").textContent =
-    "ATT-" + Date.now().toString().slice(-6);
-  document.getElementById("receipt-date").textContent =
-    now.toLocaleString("id-ID");
-  document.getElementById("receipt-user").textContent = user.name;
-  document.getElementById("receipt-amount").textContent =
-    "Check-in " + now.toLocaleTimeString("id-ID");
-
-  document.getElementById("btn-finish").onclick = () => {
-    window.location.reload();
-  };
-}
-
-/**
- * Utility to add a log line to the terminal
- */
-function addLog(tag, msg) {
-  const line = document.createElement("div");
-  line.className = "log-line";
-  line.innerHTML = `
-    <span class="log-time">[${logTimestamp()}]</span>
-    <span class="log-tag log-tag--${mapTagToClass(tag)}">${tag}</span>
-    <span class="log-msg">${msg}</span>
+  const entry = document.createElement("div");
+  entry.className = "attendance-entry";
+  entry.innerHTML = `
+    <span class="attendance-mode attendance-mode--${currentMode}">${currentMode === "checkin" ? "IN" : "OUT"}</span>
+    <span class="attendance-name">${escHtml(user.name)}</span>
+    <span class="attendance-time">${new Date().toLocaleTimeString("id-ID")}</span>
   `;
-  terminalBody.appendChild(line);
-  terminalBody.scrollTop = terminalBody.scrollHeight;
+  attendanceList?.insertBefore(entry, attendanceList.firstChild);
 }
 
-/**
- * Map tag to CSS class name
- */
-function mapTagToClass(tag) {
-  const mapping = {
-    SYSTEM: "camera",
-    ATTENDANCE: "detect",
-    API_POST: "match",
-    RESULT: "result",
-    ERROR: "error",
-  };
-  return mapping[tag] || "camera";
+function resetStartButton() {
+  if (btnStartScan) {
+    btnStartScan.disabled = false;
+    btnStartScan.textContent = "Mulai Scan";
+  }
 }
 
-// ── Run ────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(
+    /[&<>"']/g,
+    (c) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      })[c],
+  );
+}
+
 init();

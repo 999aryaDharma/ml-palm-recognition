@@ -1,70 +1,132 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+import logging
+import os
+import time
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 
 from config import get_settings
 from db.database import create_tables, SessionLocal
-from ml.detection import HandDetector
-from ml.recognizer import PalmRecognizer
 from ml.cache import EmbeddingCache
 from api import health, users, identification, demos, demo_logs, debug, seed
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+)
+logger = logging.getLogger("palm-api")
+
+
+# ── Lifespan ─────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-
-    # Startup
     create_tables()
-    
-    # Initialize app state
     app.state.settings = settings
-    
-    # Initialize ML models (stubs for now)
+
+    # ── ML Model verification & loading ──────────────────────────────────────
+    from ml.detection import HandDetector
+    from ml.recognizer import PalmRecognizer
+
+    detector_ok = os.path.exists(settings.hand_landmarker_path)
+    recognizer_ok = os.path.exists(settings.recognizer_model_path)
+
+    if not detector_ok:
+        logger.warning("⚠️  hand_landmarker.task not found at '%s'. Detection will fail.", settings.hand_landmarker_path)
+    if not recognizer_ok:
+        logger.warning("⚠️  palm_recognizer.pt not found at '%s'. Embedding extraction will fail.", settings.recognizer_model_path)
+
     app.state.detector = HandDetector(settings.hand_landmarker_path)
     app.state.recognizer = PalmRecognizer(settings.recognizer_model_path)
-    
-    # Initialize embedding cache
+
+    # ── Embedding cache warm-up ───────────────────────────────────────────────
     app.state.cache = EmbeddingCache()
+    db = SessionLocal()
     try:
-        db = SessionLocal()
         app.state.cache.warm_up(db)
+        logger.info("✓ Embedding cache warmed up — %d users cached.", app.state.cache.user_count)
+    except Exception as exc:
+        logger.error("Cache warm-up failed: %s", exc)
+    finally:
         db.close()
-    except Exception as e:
-        print(f"[Warning] Failed to warm up cache: {e}")
-        app.state.cache = EmbeddingCache()
 
-    print("Backend started. DB ready. ML models initialized.")
+    logger.info("✓ Backend started. model_loaded=%s detector_loaded=%s",
+                recognizer_ok, detector_ok)
     yield
+    logger.info("Backend shutdown.")
 
-    # Shutdown
-    print("Backend shutdown.")
 
+# ── App ───────────────────────────────────────────────────────────────────────
 
 settings = get_settings()
 
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
-    description="Palm recognition API for enrollment, identification, and demo modules.",
+    description="Palm Biometric identification API — enrollment, identification, and demo modules.",
     lifespan=lifespan,
 )
 
+# ── CORS ──────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins if settings.cors_origins != ["*"] else ["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(health.router, prefix="/health", tags=["health"])
-app.include_router(users.router, prefix="/users", tags=["users"])
-app.include_router(identification.router, tags=["identification"])
-app.include_router(demo_logs.router, prefix="/demo-logs", tags=["demo-logs"])
-app.include_router(demos.router, prefix="/demos", tags=["demos"])
-app.include_router(debug.router, prefix="/debug", tags=["debug"])
-app.include_router(seed.router, tags=["seed"])
+# ── Global exception handlers ─────────────────────────────────────────────────
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": "validation_error",
+            "message": "Request tidak valid. Periksa body, parameter, atau file upload.",
+            "details": exc.errors(),
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    logger.error("Unhandled exception on %s %s: %s", request.method, request.url.path, exc, exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "internal_server_error",
+            "message": "Terjadi kesalahan pada server. Coba lagi atau periksa log backend.",
+        },
+    )
+
+
+# ── Request logging middleware ─────────────────────────────────────────────────
+
+@app.middleware("http")
+async def request_logger(request: Request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    latency_ms = int((time.time() - start) * 1000)
+    logger.info("%s %s → %s (%dms)", request.method, request.url.path, response.status_code, latency_ms)
+    response.headers["X-Latency-Ms"] = str(latency_ms)
+    return response
+
+
+# ── Routers ───────────────────────────────────────────────────────────────────
+
+app.include_router(health.router,          prefix="/health",      tags=["health"])
+app.include_router(users.router,           prefix="/users",       tags=["users"])
+app.include_router(identification.router,                         tags=["identification"])
+app.include_router(demo_logs.router,       prefix="/demo-logs",   tags=["demo-logs"])
+app.include_router(demos.router,           prefix="/demos",       tags=["demos"])
+app.include_router(debug.router,           prefix="/debug",       tags=["debug"])
+app.include_router(seed.router,                                   tags=["seed"])
 
 
 if __name__ == "__main__":
