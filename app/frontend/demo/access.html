@@ -36,6 +36,7 @@
         <div class="demo-grid">
           <!-- Door Panel -->
           <section
+            id="door-panel"
             class="surface-card text-center flex flex-col items-center justify-center"
             style="min-height: 400px"
           >
@@ -67,12 +68,57 @@
           <!-- Scanner Panel -->
           <section id="scanner-panel" class="flex flex-col gap-6">
             <div class="scanner" id="scanner-container">
-              <div class="scanner__placeholder">
+              <video id="scanner-video" autoplay muted playsinline></video>
+              
+              <div class="scanner__target">
+                <svg viewBox="0 0 220 220" fill="none">
+                  <path d="M40 2H22C10.9543 2 2 10.9543 2 22V40" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                  <path d="M180 2H198C209.046 2 218 10.9543 218 22V40" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                  <path d="M40 218H22C10.9543 218 2 209.046 2 198V180" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                  <path d="M180 218H198C209.046 218 218 209.046 218 198V180" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                </svg>
+              </div>
+              
+              <div class="scanner__scanline"></div>
+              <div class="scanner__hint" id="scanner-hint">Scanner standby...</div>
+              
+              <div class="scanner__processing">
+                <div class="spinner"></div>
+                <div class="scanner__processing-label" id="scanner-loading-label">Memverifikasi Akses...</div>
+              </div>
+
+              <div class="scanner__result" id="scanner-result"></div>
+
+              <div class="scanner__placeholder" id="scanner-placeholder">
                 <span style="font-size: 3rem; opacity: 0.5">🚪</span>
                 <p>Scanner standby...</p>
               </div>
             </div>
+
+            <div class="surface-card">
+               <button class="btn btn--primary btn--full btn--lg" id="btn-start-scan">
+                 Aktifkan Scanner Area
+               </button>
+            </div>
           </section>
+        </div>
+
+        <div class="demo-grid" style="margin-top: var(--space-6)">
+           <section class="surface-card">
+              <h3 style="margin-bottom: var(--space-4)">Daftar Otorisasi</h3>
+              <div id="authorized-list" class="flex flex-col">
+                 <p class="text-xs text-muted">Memuat daftar...</p>
+              </div>
+           </section>
+           
+           <section class="terminal-card">
+              <div class="terminal__header">
+                <span class="terminal__title">ACCESS_LOG</span>
+              </div>
+              <div class="terminal__body" id="access-log" style="max-height: 250px; overflow-y: auto;">
+                <p class="text-xs text-muted">Belum ada aktivitas.</p>
+              </div>
+           </section>
         </div>
       </div>
     </main>

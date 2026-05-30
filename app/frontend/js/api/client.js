@@ -30,6 +30,9 @@ async function apiFetch(path, options = {}) {
     err.status = response.status;
     err.error = errData.error || "unknown_error";
     err.detail = errData.detail || errData.message || "";
+    // Note: Browser native fetch will still log a 400 to console, 
+    // this is normal and expected for quality gates. We just throw it 
+    // so the UI can handle the state.
     throw err;
   }
 

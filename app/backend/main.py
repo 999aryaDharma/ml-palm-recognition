@@ -1,3 +1,15 @@
+# ── PATCH untuk main.py ──────────────────────────────────────────────────────
+#
+# Tambahkan dua baris ini ke main.py bestehende:
+#
+# 1. Di bagian import (setelah baris `from api import health, users, ...`):
+#    from api import validate_frame
+#
+# 2. Di bagian router registration (setelah baris `app.include_router(seed.router, ...)`):
+#    app.include_router(validate_frame.router, tags=["validation"])
+#
+# ── VERSI LENGKAP main.py SETELAH PATCH ─────────────────────────────────────
+
 from contextlib import asynccontextmanager
 import logging
 import os
@@ -11,7 +23,10 @@ from fastapi.exceptions import RequestValidationError
 from config import get_settings
 from db.database import create_tables, SessionLocal
 from ml.cache import EmbeddingCache
-from api import health, users, identification, demos, demo_logs, debug, seed
+
+# ─── TAMBAH validate_frame DI SINI ───────────────────────────────────────────
+from api import health, users, identification, demos, demo_logs, debug, seed, validate_frame
+# ─────────────────────────────────────────────────────────────────────────────
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,15 +35,12 @@ logging.basicConfig(
 logger = logging.getLogger("palm-api")
 
 
-# ── Lifespan ─────────────────────────────────────────────────────────────────
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
     create_tables()
     app.state.settings = settings
 
-    # ── ML Model verification & loading ──────────────────────────────────────
     from ml.detection import HandDetector
     from ml.recognizer import PalmRecognizer
 
@@ -36,42 +48,37 @@ async def lifespan(app: FastAPI):
     recognizer_ok = os.path.exists(settings.recognizer_model_path)
 
     if not detector_ok:
-        logger.warning("⚠️  hand_landmarker.task not found at '%s'. Detection will fail.", settings.hand_landmarker_path)
+        logger.warning("⚠️  hand_landmarker.task not found at '%s'.", settings.hand_landmarker_path)
     if not recognizer_ok:
-        logger.warning("⚠️  palm_recognizer.pt not found at '%s'. Embedding extraction will fail.", settings.recognizer_model_path)
+        logger.warning("⚠️  palm_recognizer.pt not found at '%s'.", settings.recognizer_model_path)
 
     app.state.detector = HandDetector(settings.hand_landmarker_path)
     app.state.recognizer = PalmRecognizer(settings.recognizer_model_path)
 
-    # ── Embedding cache warm-up ───────────────────────────────────────────────
     app.state.cache = EmbeddingCache()
     db = SessionLocal()
     try:
         app.state.cache.warm_up(db)
-        logger.info("✓ Embedding cache warmed up — %d users cached.", app.state.cache.user_count)
+        logger.info("✓ Cache warmed up — %d users.", app.state.cache.user_count)
     except Exception as exc:
         logger.error("Cache warm-up failed: %s", exc)
     finally:
         db.close()
 
-    logger.info("✓ Backend started. model_loaded=%s detector_loaded=%s",
-                recognizer_ok, detector_ok)
+    logger.info("✓ Backend started.")
     yield
     logger.info("Backend shutdown.")
 
-
-# ── App ───────────────────────────────────────────────────────────────────────
 
 settings = get_settings()
 
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
-    description="Palm Biometric identification API — enrollment, identification, and demo modules.",
+    description="Palm Biometric identification API.",
     lifespan=lifespan,
 )
 
-# ── CORS ──────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -80,7 +87,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Global exception handlers ─────────────────────────────────────────────────
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -88,7 +94,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         status_code=422,
         content={
             "error": "validation_error",
-            "message": "Request tidak valid. Periksa body, parameter, atau file upload.",
+            "message": "Request tidak valid.",
             "details": exc.errors(),
         },
     )
@@ -96,17 +102,15 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
-    logger.error("Unhandled exception on %s %s: %s", request.method, request.url.path, exc, exc_info=True)
+    logger.error("Unhandled exception: %s", exc, exc_info=True)
     return JSONResponse(
         status_code=500,
         content={
             "error": "internal_server_error",
-            "message": "Terjadi kesalahan pada server. Coba lagi atau periksa log backend.",
+            "message": "Terjadi kesalahan pada server.",
         },
     )
 
-
-# ── Request logging middleware ─────────────────────────────────────────────────
 
 @app.middleware("http")
 async def request_logger(request: Request, call_next):
@@ -118,15 +122,17 @@ async def request_logger(request: Request, call_next):
     return response
 
 
-# ── Routers ───────────────────────────────────────────────────────────────────
+app.include_router(health.router,          prefix="/health",          tags=["health"])
+app.include_router(users.router,           prefix="/users",           tags=["users"])
+app.include_router(identification.router,                             tags=["identification"])
+app.include_router(demo_logs.router,       prefix="/demo-logs",       tags=["demo-logs"])
+app.include_router(demos.router,           prefix="/demos",           tags=["demos"])
+app.include_router(debug.router,           prefix="/debug",           tags=["debug"])
+app.include_router(seed.router,                                       tags=["seed"])
 
-app.include_router(health.router,          prefix="/health",      tags=["health"])
-app.include_router(users.router,           prefix="/users",       tags=["users"])
-app.include_router(identification.router,                         tags=["identification"])
-app.include_router(demo_logs.router,       prefix="/demo-logs",   tags=["demo-logs"])
-app.include_router(demos.router,           prefix="/demos",       tags=["demos"])
-app.include_router(debug.router,           prefix="/debug",       tags=["debug"])
-app.include_router(seed.router,                                   tags=["seed"])
+# ─── TAMBAH BARIS INI ────────────────────────────────────────────────────────
+app.include_router(validate_frame.router,                             tags=["validation"])
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 if __name__ == "__main__":

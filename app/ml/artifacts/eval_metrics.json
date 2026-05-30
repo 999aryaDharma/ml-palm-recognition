@@ -1,0 +1,13 @@
+{
+  "num_classes": 200,
+  "num_genuine_pairs": 2000,
+  "num_impostor_pairs": 398000,
+  "rank1_accuracy": 0.945,
+  "eer": 0.020493718592964803,
+  "eer_threshold": 0.25715944170951843,
+  "roc_auc": 0.9983371783919599,
+  "mean_genuine_score": 0.6176275686956942,
+  "mean_impostor_score": 0.011114521149322076,
+  "tar_at_far_0.001": 0.9175,
+  "tar_at_far_0.0001": 0.836
+}

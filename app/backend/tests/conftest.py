@@ -66,7 +66,7 @@ def client(app_with_mocks):
 # ── Isolated DB for each test ─────────────────────────────────────────────────
 
 @pytest.fixture(autouse=True)
-def clean_db():
+def clean_db(app_with_mocks):
     """Wipe all rows before each test for isolation."""
     from db.database import SessionLocal, Base, engine
     from db.models import User, Template, DemoLog
@@ -75,5 +75,6 @@ def clean_db():
     db.query(Template).delete()
     db.query(User).delete()
     db.commit()
+    app_with_mocks.app.state.cache._users = []  # Clear cache
     db.close()
     yield

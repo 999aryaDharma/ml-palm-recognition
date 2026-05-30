@@ -1,0 +1,11 @@
+{
+  "threshold": 0.25715944170951843,
+  "eer": 0.020493718592964803,
+  "rank1_accuracy": 0.945,
+  "roc_auc": 0.9983371783919599,
+  "model": "mobilefacenet_arcface_tongji",
+  "calibrated_on": "tongji_test_holdout",
+  "note": "EER point threshold. Lower threshold = more strict (higher security, lower convenience). Higher threshold = more permissive.",
+  "tar_at_far_0.001": 0.9175,
+  "tar_at_far_0.0001": 0.836
+}

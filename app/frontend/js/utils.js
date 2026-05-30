@@ -14,6 +14,7 @@ export const QUALITY_HINTS = {
   roi_extraction_failed: "🧭 Posisikan telapak di tengah frame",
   network_error: "🌐 Backend tidak dapat dihubungi. Periksa server",
   camera_permission_denied: "🎥 Izin kamera diperlukan untuk memindai telapak",
+  no_templates_enrolled: "🚫 Database kosong. Daftarkan (Enroll) user dulu",
 };
 
 /**

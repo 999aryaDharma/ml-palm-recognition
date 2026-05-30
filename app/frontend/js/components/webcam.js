@@ -38,7 +38,7 @@ export class WebcamCapture {
   async start() {
     if (this.stream) return; // already running
 
-    this.stream = await navigator.mediaDevices.getUserMedia({
+    const constraints = {
       video: {
         width: { ideal: this.width },
         height: { ideal: this.height },
@@ -46,17 +46,46 @@ export class WebcamCapture {
         frameRate: { ideal: 30 },
       },
       audio: false,
-    });
+    };
+
+    try {
+      console.log("[WebcamCapture] Requesting camera with constraints:", constraints);
+      this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (err) {
+      console.warn("[WebcamCapture] Preferred constraints failed, trying fallback...", err);
+      // Fallback: minimal constraints
+      this.stream = await navigator.mediaDevices.getUserMedia({ 
+        video: true, 
+        audio: false 
+      });
+    }
 
     this.videoEl.srcObject = this.stream;
     this.videoEl.setAttribute("playsinline", ""); // iOS fix
+    this.videoEl.muted = true; // Extra safety for autoplay
 
     await new Promise((resolve, reject) => {
-      this.videoEl.onloadedmetadata = resolve;
-      this.videoEl.onerror = reject;
+      const onLoaded = () => {
+        console.log(`[WebcamCapture] Video ready: ${this.videoEl.videoWidth}x${this.videoEl.videoHeight}`);
+        resolve();
+      };
+      
+      if (this.videoEl.readyState >= 2) {
+        return onLoaded();
+      }
+      this.videoEl.addEventListener("loadeddata", onLoaded, { once: true });
+      this.videoEl.addEventListener("error", (e) => reject(new Error("Video element error")), { once: true });
+      
+      // Fallback timeout in case event doesn't fire
+      setTimeout(onLoaded, 3000);
     });
 
-    await this.videoEl.play();
+    try {
+      await this.videoEl.play();
+      console.log("[WebcamCapture] Video playing");
+    } catch (err) {
+      console.warn("[WebcamCapture] Video play failed, might need user interaction:", err);
+    }
   }
 
   /** Capture one frame as a JPEG Blob. Returns null if video not ready. */

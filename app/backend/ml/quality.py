@@ -4,27 +4,38 @@ Validates palm image quality for biometric processing
 """
 
 from PIL import Image
+import cv2
+import numpy as np
 from typing import Tuple
 
 
-def assess_image_quality(image: Image.Image, detection_result: dict) -> Tuple[str, float]:
+def assess_image_quality(image: Image.Image, detection_result: dict = None) -> Tuple[str, float]:
     """
-    Assess quality of palm image for biometric processing.
+    Assess quality of palm image for biometric processing using Laplacian variance.
     
     Args:
         image: PIL Image object
-        detection_result: Hand detection result
+        detection_result: Hand detection result (optional)
         
     Returns:
         Tuple of (quality_code, quality_score)
         quality_code: 'good', 'acceptable', 'poor'
         quality_score: Normalized score 0-1
     """
-    # TODO: Implement actual quality assessment
-    # Check for: blur, lighting, hand visibility, palm coverage, etc.
+    img_rgb = np.array(image.convert("RGB"))
+    gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
+    lap_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
     
-    # For now, return a default acceptable score
-    return "acceptable", 0.80
+    # Normalize laplacian variance to a 0-1 score (rough heuristic)
+    # 50 is our minimum threshold
+    score = min(1.0, lap_var / 200.0)
+    
+    if lap_var < 50.0:
+        return "poor", score
+    elif lap_var < 100.0:
+        return "acceptable", score
+    else:
+        return "good", score
 
 
 QUALITY_ERRORS = {

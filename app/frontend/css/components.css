@@ -244,11 +244,25 @@
   height: 220px;
   transform: translate(-50%, -50%);
   pointer-events: none;
+  color: rgba(255, 255, 255, 0.4);
+  transition: all var(--duration-base) var(--ease-out);
 }
 
 .scanner__target svg {
   width: 100%;
   height: 100%;
+}
+
+.scanner--detected .scanner__target {
+  color: var(--color-matcha);
+  width: 230px;
+  height: 230px;
+  filter: drop-shadow(0 0 8px rgba(138, 154, 91, 0.6));
+}
+
+.scanner--no-palm .scanner__target {
+  color: var(--color-coral);
+  opacity: 0.8;
 }
 
 /* Scanline */
@@ -328,15 +342,26 @@
   inset: 0;
   background: rgba(28, 22, 18, 0.6);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: var(--space-4);
   pointer-events: none;
   opacity: 0;
   transition: opacity var(--duration-base);
+  color: white;
+  z-index: 20;
 }
 
 .scanner--processing .scanner__processing {
   opacity: 1;
+}
+
+.scanner__processing-label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 /* Result overlay */

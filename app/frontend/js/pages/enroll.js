@@ -1,21 +1,52 @@
 // ============================================================
-// js/pages/enroll.js — Enrollment page logic
+// js/pages/enroll.js — Enrollment page logic (FIXED v2)
+//
+// FLOW YANG BENAR (setelah perbaikan):
+//
+//   [Step 1] User isi nama
+//            → Validasi: nama tidak boleh kosong
+//            → BELUM ke backend sama sekali
+//
+//   [Step 2] Kamera aktif, auto-capture mulai
+//            → Setiap frame dikirim ke POST /validate-frame
+//            → Jika quality gate GAGAL: tampilkan hint, ulangi capture
+//            → Jika quality gate LOLOS untuk pertama kali:
+//                 1. POST /users  ← createUser() dipanggil SEKARANG
+//                 2. POST /users/{id}/templates dengan blob yang sama
+//                 3. sampleCount = 1, isUserCreated = true
+//
+//   [Step 3] Capture sampel 2-5
+//            → POST /users/{id}/templates langsung (user sudah ada)
+//            → Progress bertambah hanya jika berhasil
+//
+//   [Step 4] Verifikasi: POST /identify
+//            → Jika cocok dengan user yang baru dibuat → Sukses
+//            → Jika gagal → retry capture (user & template tetap ada)
+//
+// MENGAPA INI BENAR:
+//   - User di backend HANYA dibuat setelah terbukti telapak bisa di-detect
+//   - Tidak ada lagi user dengan 0 template "hantu"
+//   - Kamera harus menyala dan telapak terdeteksi sebelum apapun disimpan
+//   - Cancel setelah user dibuat = hapus user dari backend (cleanup)
 // ============================================================
 
 import { mountNavbar } from "../components/navbar.js";
 import { WebcamCapture } from "../components/webcam.js";
 import { createUser, addTemplate, deleteUser } from "../api/users.js";
 import { identify } from "../api/identify.js";
+import { apiFetch } from "../api/client.js";
 import { toast } from "../components/toast.js";
 import { QUALITY_HINTS, sleep } from "../utils.js";
 
 // ── State ──────────────────────────────────────────────────
 let webcam = null;
-let currentUserId = null;
+let currentUserId = null; // null SAMPAI scan pertama berhasil + createUser() dipanggil
 let currentUserName = "";
+let pendingName = ""; // nama dari step 1, belum dikirim ke backend
 let sampleCount = 0;
 const MAX_SAMPLES = 5;
 let isCapturing = false;
+let isUserCreated = false; // guard: true setelah createUser() berhasil
 
 // ── DOM Elements ───────────────────────────────────────────
 const steps = {
@@ -37,259 +68,322 @@ const sampleBadge = document.getElementById("sample-count-badge");
 const sampleDots = document.querySelectorAll(".step-dot");
 const successName = document.getElementById("success-name");
 
-// ── Helper untuk debug ────────────────────────────────────
-function logDebug(msg) {
-  console.log(msg);
-  // Also write to DOM for visibility
-  const debugEl = document.getElementById("debug-log") || createDebugLog();
-  const logEntry = document.createElement("div");
-  logEntry.textContent = msg;
-  logEntry.style.fontSize = "11px";
-  logEntry.style.padding = "2px";
-  logEntry.style.borderBottom = "1px solid #ccc";
-  debugEl.appendChild(logEntry);
-  debugEl.scrollTop = debugEl.scrollHeight;
-}
+// ── Init ───────────────────────────────────────────────────
+function init() {
+  mountNavbar();
 
-function createDebugLog() {
-  const el = document.createElement("div");
-  el.id = "debug-log";
-  el.style.position = "fixed";
-  el.style.bottom = "0";
-  el.style.left = "0";
-  el.style.right = "0";
-  el.style.height = "150px";
-  el.style.overflow = "auto";
-  el.style.background = "#f0f0f0";
-  el.style.border = "1px solid #999";
-  el.style.zIndex = "9999";
-  el.style.fontFamily = "monospace";
-  el.style.display = "none"; // hidden by default
-  document.body.appendChild(el);
-  return el;
-}
+  btnToCapture.addEventListener("click", goToCaptureStep);
+  btnCancelCapture.addEventListener("click", cancelEnrollment);
 
-// Show debug log when needed
-if (window.location.search.includes("debug=1")) {
-  document.addEventListener("DOMContentLoaded", () => {
-    const debugEl = document.getElementById("debug-log");
-    if (debugEl) debugEl.style.display = "block";
+  inputName.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") goToCaptureStep();
+  });
+
+  inputName.focus();
+
+  window.addEventListener("beforeunload", cleanupOnExit);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden && webcam) webcam.stop();
   });
 }
 
-// ── Initialization ─────────────────────────────────────────
-function init() {
-  try {
-    logDebug("[Init] Starting...");
-    mountNavbar();
-    logDebug("[Init] Navbar mounted");
-
-    btnToCapture.addEventListener("click", () => {
-      logDebug("[Init] btn-to-capture clicked");
-      startEnrollment();
-    });
-    btnCancelCapture.addEventListener("click", () => {
-      logDebug("[Init] btn-cancel-capture clicked");
-      cancelEnrollment();
-    });
-
-    // Auto-focus name input
-    inputName.focus();
-    logDebug("[Init] Page ready");
-
-    // Add cleanup on page leave
-    window.addEventListener("beforeunload", () => {
-      if (webcam) webcam.stop();
-    });
-    document.addEventListener("visibilitychange", () => {
-      if (document.hidden && webcam) webcam.stop();
-    });
-  } catch (err) {
-    logDebug("[Init] ERROR: " + err.message);
-    console.error("[Enrollment] Init error:", err);
-  }
-}
-
-/** Show a specific step and hide others */
 function showStep(stepName) {
   Object.keys(steps).forEach((key) => {
     steps[key].classList.toggle("hidden", key !== stepName);
   });
 }
 
-// ── Flow ───────────────────────────────────────────────────
-
-/** Step 1 → 2: Create user and start camera */
-async function startEnrollment() {
+// ── STEP 1 → STEP 2 ───────────────────────────────────────
+// Hanya validasi nama secara lokal, langsung aktifkan kamera.
+// createUser() BELUM dipanggil di sini.
+async function goToCaptureStep() {
   const name = inputName.value.trim();
-  if (!name) {
-    toast.warning("Silakan masukkan nama lengkap.");
+
+  if (!name || name.length < 2) {
+    toast.warning("Nama minimal 2 karakter.");
+    inputName.focus();
     return;
   }
 
-  try {
-    btnToCapture.disabled = true;
-    btnToCapture.textContent = "Mendaftarkan...";
+  pendingName = name;
+  currentUserName = name;
 
-    logDebug("[startEnrollment] Creating user: " + name);
-    const user = await createUser(name);
-    logDebug("[startEnrollment] User created, id=" + user.id);
-    currentUserId = user.id;
-    currentUserName = user.name;
+  btnToCapture.disabled = true;
+  btnToCapture.textContent = "Menyiapkan kamera...";
 
-    logDebug("[startEnrollment] Showing capture step...");
-    showStep("capture");
-    logDebug("[startEnrollment] Step changed, initializing webcam...");
-    await initWebcam();
-  } catch (err) {
-    logDebug("[startEnrollment] CAUGHT ERROR: " + err.message);
-    console.error("[Enrollment] Error in startEnrollment:", err);
-    toast.error(err.message || "Gagal mendaftarkan user.");
-    btnToCapture.disabled = false;
-    btnToCapture.textContent = "Mulai Enrollment";
-  }
+  showStep("capture");
+  await initWebcam();
 }
 
-/** Initialize webcam and start auto-capture */
+// ── Kamera ─────────────────────────────────────────────────
 async function initWebcam() {
+  setHint("🎥 Menyalakan kamera...");
+
+  // Bersihkan retry button lama jika ada
+  document.getElementById("btn-retry-camera")?.remove();
+
   try {
-    console.log("[Enrollment] Initializing webcam...");
     webcam = new WebcamCapture(videoEl, {
       onCapture: handleCapture,
-      captureInterval: 1800, // Slightly slower for feedback clarity
+      captureInterval: 1800,
     });
 
-    console.log("[Enrollment] Starting webcam stream...");
     await webcam.start();
-    console.log("[Enrollment] Webcam started successfully");
-
-    scannerHint.textContent = "Tunjukkan telapak tangan";
+    setHint("🖐 Tunjukkan telapak tangan ke kamera");
     webcam.startAutoCapture();
-    console.log("[Enrollment] Auto-capture started");
   } catch (err) {
-    console.error("[Enrollment] Webcam error:", err);
-    const errorMsg = err.message || "Gagal mengakses kamera";
-    toast.error("Gagal mengakses kamera: " + errorMsg);
-
-    // Show a retry button instead of auto-redirecting
-    scannerHint.textContent =
-      "❌ " + errorMsg + " — Klik 'Coba Lagi' atau 'Batal'";
-    scannerHint.style.background = "rgba(239, 68, 68, 0.2)";
-
-    // Optionally add a retry button
-    const btnRetry = document.createElement("button");
-    btnRetry.className = "btn btn--primary";
-    btnRetry.textContent = "Coba Lagi";
-    btnRetry.onclick = () => {
-      scannerHint.textContent = "Menghidupkan kamera...";
-      scannerHint.style.background = "";
-      btnRetry.remove();
-      initWebcam();
-    };
-    document.querySelector(".surface-card").appendChild(btnRetry);
-
-    // Don't call cancelEnrollment() - let user try again
+    setHint("❌ Tidak dapat mengakses kamera", true);
+    toast.error(
+      "Gagal mengakses kamera. Pastikan izin sudah diberikan di browser.",
+    );
+    showRetryButton();
   }
 }
 
-/** Handle auto-capture results */
+// ── Handle Capture ─────────────────────────────────────────
 async function handleCapture(blob) {
   if (isCapturing || sampleCount >= MAX_SAMPLES) return;
   isCapturing = true;
 
   scannerLoading.classList.remove("hidden");
   scanline.classList.remove("hidden");
-  scannerHint.textContent = "Memproses...";
 
   try {
-    const result = await addTemplate(currentUserId, blob);
+    if (!isUserCreated) {
+      // ============================================================
+      // FASE 1: User belum ada di backend.
+      // Langkah: validate-frame dulu → jika lolos → createUser → addTemplate
+      // Ini memastikan user HANYA dibuat jika telapak memang bisa dideteksi.
+      // ============================================================
+      setHint("🔍 Mendeteksi telapak...");
 
-    // Success capture
-    sampleCount++;
-    updateProgress();
-    toast.success(`Sampel ${sampleCount} berhasil diambil.`, "Sampel Terambil");
+      // Cek quality gate tanpa menyimpan apapun
+      const validateForm = new FormData();
+      validateForm.append("image", blob, "frame.jpg");
 
-    if (sampleCount >= MAX_SAMPLES) {
-      webcam.stopAutoCapture();
-      scanline.classList.add("hidden");
-      await runVerification();
+      let validateOk = false;
+      try {
+        await apiFetch("/validate-frame", {
+          method: "POST",
+          body: validateForm,
+        });
+        validateOk = true;
+      } catch (valErr) {
+        // Quality gate gagal — tampilkan hint, jangan buat user
+        const hint =
+          QUALITY_HINTS[valErr.error] || "Arahkan telapak tangan ke kamera";
+        setHint(hint);
+        return; // isCapturing di-reset di finally
+      }
+
+      if (!validateOk) return;
+
+      // Frame valid → sekarang baru buat user di backend
+      setHint("⏳ Mendaftarkan pengguna...");
+      let newUser;
+      try {
+        newUser = await createUser(pendingName);
+      } catch (createErr) {
+        setHint("❌ Gagal terhubung ke server. Cek backend.", true);
+        toast.error("Backend tidak dapat dihubungi.");
+        return;
+      }
+
+      // Upload template dengan blob yang sama (sudah terbukti valid)
+      try {
+        await addTemplate(newUser.id, blob);
+        currentUserId = newUser.id;
+        isUserCreated = true;
+        sampleCount = 1;
+        updateProgress();
+        setHint(`✅ Sampel 1/${MAX_SAMPLES} — tahan posisi...`);
+        toast.success(`Sampel 1/${MAX_SAMPLES} berhasil.`, "Sampel Diambil");
+      } catch (templateErr) {
+        // Aneh tapi bisa terjadi (race condition): validasi lolos tapi addTemplate gagal
+        // Hapus user yang baru dibuat agar tidak jadi "hantu"
+        await deleteUser(newUser.id).catch(() => {});
+        const hint =
+          QUALITY_HINTS[templateErr.error] || "Posisikan ulang telapak";
+        setHint(hint);
+        return;
+      }
     } else {
-      scannerHint.textContent = "Tahan stabil...";
+      // ============================================================
+      // FASE 2: User sudah ada. Langsung upload template berikutnya.
+      // ============================================================
+      setHint(`📷 Mengambil sampel ${sampleCount + 1}...`);
+
+      try {
+        await addTemplate(currentUserId, blob);
+        sampleCount++;
+        updateProgress();
+
+        if (sampleCount >= MAX_SAMPLES) {
+          webcam.stopAutoCapture();
+          scanline.classList.add("hidden");
+          setHint("✅ Semua sampel terkumpul! Memverifikasi...");
+          await runVerification();
+        } else {
+          setHint(
+            `👍 Sampel ${sampleCount}/${MAX_SAMPLES} OK — tahan posisi...`,
+          );
+          toast.success(
+            `Sampel ${sampleCount}/${MAX_SAMPLES} berhasil.`,
+            "Sampel Diambil",
+          );
+        }
+      } catch (err) {
+        const hint =
+          QUALITY_HINTS[err.error] || "Geser tangan sedikit dan tahan";
+        setHint(hint);
+      }
     }
-  } catch (err) {
-    // Quality gate error
-    const hint = QUALITY_HINTS[err.error] || "Coba posisikan kembali telapak";
-    scannerHint.textContent = hint;
-    // Don't show toast for quality errors to avoid spam, just update hint
   } finally {
     isCapturing = false;
     scannerLoading.classList.add("hidden");
     if (sampleCount < MAX_SAMPLES) {
-      setTimeout(() => scanline.classList.add("hidden"), 500);
+      setTimeout(() => scanline.classList.add("hidden"), 400);
     }
   }
 }
 
-/** Step 2 → 3: Final verification gate */
+// ── Verifikasi Akhir ───────────────────────────────────────
 async function runVerification() {
   showStep("verifying");
-
-  // Wait a bit to show the "Verifying" state for UX
-  await sleep(1500);
+  await sleep(1200);
 
   try {
-    const blob = await webcam.captureFrame();
-    const result = await identify(blob);
+    let verifyBlob = null;
+    if (webcam?.isRunning) {
+      verifyBlob = await webcam.captureFrame();
+    }
 
-    if (result.status === "identified" && result.user.id === currentUserId) {
-      // SUCCESS!
+    if (!verifyBlob) {
+      throw new Error(
+        "Tidak dapat mengambil frame verifikasi. Pastikan kamera masih aktif.",
+      );
+    }
+
+    const result = await identify(verifyBlob);
+
+    if (result.status === "identified" && result.user?.id === currentUserId) {
       webcam.stop();
       successName.textContent = currentUserName;
       showStep("success");
-      toast.success("Enrollment selesai sepenuhnya.", "Berhasil");
+      toast.success("Enrollment selesai!", "Berhasil");
+    } else if (result.status === "identified") {
+      throw new Error(
+        `Verifikasi gagal: terdeteksi sebagai ${result.user?.name || "orang lain"}. Coba scan ulang.`,
+      );
     } else {
-      throw new Error("Verifikasi identitas gagal setelah pendaftaran.");
+      throw new Error(
+        "Telapak belum dikenali. Coba scan ulang dengan posisi lebih jelas.",
+      );
     }
   } catch (err) {
-    toast.error(err.message || "Gagal verifikasi pendaftaran.");
-    // If verification fails, we might want to let them retry capture or delete the partial user
-    // For now, let's allow them to go back to capture
+    toast.warning(err.message || "Verifikasi gagal. Scan ulang diperlukan.");
+
+    // Kembali ke capture — template yang sudah ada tetap berguna
     sampleCount = 0;
     updateProgress();
     showStep("capture");
-    webcam.startAutoCapture();
+    setHint("🔄 Scan ulang untuk verifikasi.");
+
+    if (webcam?.isRunning) {
+      webcam.startAutoCapture();
+    } else {
+      await initWebcam();
+    }
   }
 }
 
-/** Update UI progress */
+// ── Progress UI ────────────────────────────────────────────
 function updateProgress() {
-  sampleBadge.textContent = `${sampleCount} / ${MAX_SAMPLES}`;
-  sampleDots.forEach((dot, idx) => {
-    dot.classList.toggle("active", idx < sampleCount);
-    dot.classList.toggle("completed", idx < sampleCount);
-  });
-}
-
-/** Cancel and cleanup */
-async function cancelEnrollment() {
-  console.log(
-    "[Enrollment] Canceling enrollment, currentUserId:",
-    currentUserId,
-  );
-  if (webcam) webcam.stop();
-
-  // If we already created a user, delete it from backend
-  if (currentUserId) {
-    try {
-      console.log("[Enrollment] Deleting user", currentUserId);
-      await deleteUser(currentUserId);
-    } catch (err) {
-      console.error("[Enrollment] Failed to delete user:", err);
+  if (sampleBadge) {
+    sampleBadge.textContent = `${sampleCount} / ${MAX_SAMPLES}`;
+    sampleBadge.className = "badge";
+    if (sampleCount === 0) {
+      sampleBadge.classList.add("badge--processing");
+    } else if (sampleCount >= MAX_SAMPLES) {
+      sampleBadge.classList.add("badge--identified");
+    } else {
+      sampleBadge.classList.add("badge--scanning");
     }
   }
 
-  console.log("[Enrollment] Redirecting to index.html");
-  window.history.back();
+  sampleDots.forEach((dot, idx) => {
+    dot.classList.remove("active", "completed");
+    if (idx < sampleCount) {
+      dot.classList.add("completed");
+    } else if (idx === sampleCount && sampleCount < MAX_SAMPLES) {
+      dot.classList.add("active");
+    }
+  });
+}
+
+function setHint(text, isError = false) {
+  if (!scannerHint) return;
+  scannerHint.textContent = text;
+  scannerHint.style.color = isError ? "var(--color-coral)" : "";
+}
+
+function showRetryButton() {
+  document.getElementById("btn-retry-camera")?.remove();
+  const btn = document.createElement("button");
+  btn.id = "btn-retry-camera";
+  btn.className = "btn btn--secondary";
+  btn.textContent = "Coba Lagi";
+  btn.style.marginTop = "var(--space-4)";
+  btn.onclick = async () => {
+    btn.remove();
+    await initWebcam();
+  };
+  const scannerEl = document.getElementById("scanner-container");
+  scannerEl?.insertAdjacentElement("afterend", btn);
+}
+
+// ── Cancel ─────────────────────────────────────────────────
+async function cancelEnrollment() {
+  webcam?.stop();
+
+  if (isUserCreated && currentUserId) {
+    // Hapus user dari backend — enrollment dibatalkan
+    await deleteUser(currentUserId).catch(() => {});
+  }
+
+  resetLocalState();
+  window.history.length > 1
+    ? window.history.back()
+    : (window.location.href = "index.html");
+}
+
+// ── Cleanup saat tab ditutup / navigasi pergi ──────────────
+function cleanupOnExit() {
+  webcam?.stop();
+
+  // Hapus user "setengah jadi" (< 5 template) via sendBeacon
+  if (isUserCreated && currentUserId && sampleCount < MAX_SAMPLES) {
+    const url = `http://localhost:8000/users/${currentUserId}`;
+    if (navigator.sendBeacon) {
+      // sendBeacon tidak support DELETE, pakai workaround dengan header custom
+      // atau biarkan backend cleanup job yang menghapus user tanpa template
+      // Solusi pragmatis: gunakan fetch dengan keepalive
+      fetch(url, { method: "DELETE", keepalive: true }).catch(() => {});
+    }
+  }
+}
+
+function resetLocalState() {
+  currentUserId = null;
+  currentUserName = "";
+  pendingName = "";
+  sampleCount = 0;
+  isUserCreated = false;
+  isCapturing = false;
+  updateProgress();
+  btnToCapture.disabled = false;
+  btnToCapture.textContent = "Mulai Enrollment";
+  inputName.value = "";
 }
 
 // ── Run ────────────────────────────────────────────────────

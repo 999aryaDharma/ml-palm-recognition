@@ -40,7 +40,7 @@
             </p>
           </div>
 
-          <div class="surface-card">
+          <form id="form-name" class="surface-card">
             <div class="form-group">
               <label for="input-name">Nama Lengkap</label>
               <input
@@ -54,12 +54,13 @@
               <p class="form-hint">Gunakan nama asli untuk akurasi data.</p>
             </div>
             <button
+              type="submit"
               id="btn-to-capture"
               class="btn btn--primary btn--full btn--lg"
             >
               Mulai Enrollment
             </button>
-          </div>
+          </form>
         </section>
 
         <!-- Step 2: Capture Samples -->
@@ -123,6 +124,7 @@
               <!-- Loading Overlay -->
               <div class="scanner__processing hidden" id="scanner-loading">
                 <div class="spinner"></div>
+                <div class="scanner__processing-label" id="scanner-loading-label">Memproses...</div>
               </div>
             </div>
 

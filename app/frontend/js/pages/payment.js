@@ -1,13 +1,15 @@
 // ============================================================
 // js/pages/payment.js — Palm Payment demo logic
+// Fixed: scanner start on button click, btn state, terminal clear
 // ============================================================
 
 import { mountNavbar } from "../components/navbar.js";
 import { PalmScanner } from "../components/palm-scanner.js";
+import { DiagnosticTerminal } from "../components/terminal.js";
 import { paymentPay } from "../api/demos.js";
 import { showModal } from "../components/modal.js";
 import { toast } from "../components/toast.js";
-import { formatRupiah, logTimestamp, generateTxnId, sleep } from "../utils.js";
+import { formatRupiah, logTimestamp, generateTxnId } from "../utils.js";
 
 // ── Utilities ──────────────────────────────────────────────
 function escapeHtml(text) {
@@ -18,76 +20,95 @@ function escapeHtml(text) {
     '"': "&quot;",
     "'": "&#039;",
   };
-  return String(text).replace(/[&<>"']/g, (char) => map[char]);
+  return String(text).replace(/[&<>"']/g, (c) => map[c]);
 }
+
+// ── Constants ──────────────────────────────────────────────
+const MERCHANT_NAME = "Toko Maju Jaya";
+const ORDER_TOTAL = 127500;
 
 // ── State ──────────────────────────────────────────────────
 let scanner = null;
-const MERCHANT_NAME = "Toko Maju Jaya";
-const ORDER_TOTAL = 127500;
+let terminal = null;
 let isPaymentProcessing = false;
+let scannerStarted = false;
 
-// ── DOM Elements ───────────────────────────────────────────
+// ── DOM ────────────────────────────────────────────────────
 const scannerContainer = document.getElementById("scanner-container");
 const btnStartPayment = document.getElementById("btn-start-payment");
 const terminalBody = document.getElementById("terminal-body");
 const checkoutPanel = document.getElementById("checkout-panel");
 const receiptPanel = document.getElementById("receipt-panel");
+const btnClearLog = document.getElementById("btn-clear-log");
 
 // ── Initialization ─────────────────────────────────────────
 function init() {
   mountNavbar();
 
-  // Setup PalmScanner
+  terminal = new DiagnosticTerminal(terminalBody);
+  terminal.addLog("SYSTEM", "Palm Payment module loaded.");
+  terminal.addLog("SYSTEM", "Klik 'Bayar dengan Telapak' untuk mulai.");
+
+  // Build PalmScanner — note: scanner is created once, start() called on button click
   scanner = new PalmScanner({
     containerEl: scannerContainer,
     videoEl: document.getElementById("scanner-video"),
     hintEl: document.getElementById("scanner-hint"),
     resultEl: document.getElementById("scanner-result"),
     placeholderEl: document.getElementById("scanner-placeholder"),
-    logFn: addLog,
+    logFn: (tag, msg) => terminal.addLog(tag, msg),
     onIdentified: handleIdentified,
     onUnknown: (score) => {
       toast.warning("Pengguna tidak dikenali. Silakan hubungi kasir.", "Gagal");
     },
+    captureIntervalMs: 1500,
+    autoResetMs: 4000,
   });
 
-  btnStartPayment.addEventListener("click", () => {
-    scanner.start();
+  btnStartPayment.addEventListener("click", async () => {
+    if (scannerStarted) return; // prevent double-click
+    scannerStarted = true;
     btnStartPayment.disabled = true;
     btnStartPayment.innerHTML = `<span class="spinner spinner--sm"></span> Menunggu Scan...`;
-    addLog("SYSTEM", "Payment mode activated. Waiting for palm scan...");
+    terminal.addLog(
+      "SYSTEM",
+      "Payment mode activated. Waiting for palm scan...",
+    );
+    await scanner.start();
   });
+
+  btnClearLog?.addEventListener("click", () => terminal.clear());
 
   // Cleanup on page leave
-  window.addEventListener("beforeunload", () => {
-    if (scanner) scanner.stop();
-  });
+  window.addEventListener("beforeunload", () => scanner?.stop());
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden && scanner) scanner.stop();
+    if (document.hidden) scanner?.stop();
   });
 
-  addLog("SYSTEM", "Ready to process payment.");
+  terminal.addLog("SYSTEM", "Ready to process payment.");
 }
 
-/**
- * Handle successful biometric identification
- */
+// ── Handle identification ──────────────────────────────────
 async function handleIdentified(user, score, latency) {
   if (isPaymentProcessing) return;
 
-  addLog("PAYMENT", `User ${user.name} matched with score ${score.toFixed(4)}`);
+  terminal.addLog(
+    "PAYMENT",
+    `User ${escapeHtml(user.name)} matched — score ${score.toFixed(4)}`,
+  );
 
   showModal({
     title: "Konfirmasi Pembayaran",
     message: `
       <div class="flex flex-col gap-4">
         <p>Bayar pesanan sebesar <strong>${formatRupiah(ORDER_TOTAL)}</strong> atas nama:</p>
-        <div class="surface-card-warm flex items-center gap-4" style="padding: var(--space-4)">
-          <div class="user-avatar" style="width: 40px; height: 40px; font-size: 1rem">${escapeHtml(user.name[0])}</div>
+        <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--color-surface-warm);border-radius:12px;border:1px solid var(--color-border)">
+          <div style="width:40px;height:40px;border-radius:8px;background:var(--color-coffee);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:1.1rem">
+            ${escapeHtml(user.name[0])}
+          </div>
           <div>
-            <div style="font-weight: 600">${escapeHtml(user.name)}</div>
-            <div class="text-xs text-muted">ID: #${user.id} · Match: ${(score * 100).toFixed(1)}%</div>
+            <div style="font-weight:600">${escapeHtml(user.name)}</div>
+            <div class="text-xs" style="color:var(--color-coffee-light)">ID: #${user.id} · Match: ${(score * 100).toFixed(1)}% · ${latency}ms</div>
           </div>
         </div>
       </div>
@@ -95,49 +116,45 @@ async function handleIdentified(user, score, latency) {
     icon: "💳",
     confirmLabel: "Konfirmasi & Bayar",
     confirmVariant: "success",
-    onConfirm: () => processPayment(user),
+    onConfirm: () => processPayment(user, score),
     onCancel: () => {
-      addLog("SYSTEM", "Payment cancelled by user.");
+      terminal.addLog("SYSTEM", "Payment cancelled by user.");
       scanner.resume();
     },
   });
 }
 
-/**
- * Finalize payment with API call
- */
-async function processPayment(user) {
+// ── Process payment ────────────────────────────────────────
+async function processPayment(user, score) {
   isPaymentProcessing = true;
-  addLog("API_POST", `/demos/payment/pay (user_id: ${user.id})`);
+  terminal.addLog(
+    "API_POST",
+    `/demos/payment/pay (user_id: ${user.id}, amount: ${ORDER_TOTAL})`,
+  );
 
   try {
     const result = await paymentPay(user.id, ORDER_TOTAL, MERCHANT_NAME);
 
-    addLog(
+    terminal.addLog(
       "RESULT",
-      "Payment SUCCESS. Transaction ID: " +
+      "Payment SUCCESS — Transaction ID: " +
         (result.transaction_id || "TXN-" + Date.now()),
     );
 
-    // UI Transition
     checkoutPanel.classList.add("hidden");
     showReceipt(user, result);
     toast.success("Pembayaran berhasil diproses.", "Sukses");
 
-    // Stop camera as we are in receipt view
-    scanner.stop();
+    scanner.stop(); // release camera — we're on receipt screen now
   } catch (err) {
-    addLog("ERROR", err.message || "Failed to process payment");
+    terminal.addLog("ERROR", err.message || "Failed to process payment");
     toast.error("Gagal memproses pembayaran. Silakan coba lagi.");
     scanner.resume();
-  } finally {
     isPaymentProcessing = false;
   }
 }
 
-/**
- * Display digital receipt
- */
+// ── Receipt ────────────────────────────────────────────────
 function showReceipt(user, result) {
   receiptPanel.classList.remove("hidden");
 
@@ -150,37 +167,8 @@ function showReceipt(user, result) {
     formatRupiah(ORDER_TOTAL);
 
   document.getElementById("btn-finish").onclick = () => {
-    window.location.reload(); // Simplest reset for demo
+    window.location.reload();
   };
-}
-
-/**
- * Utility to add a log line to the terminal
- */
-function addLog(tag, msg) {
-  const line = document.createElement("div");
-  line.className = "log-line";
-  line.innerHTML = `
-    <span class="log-time">[${logTimestamp()}]</span>
-    <span class="log-tag log-tag--${mapTagToClass(tag)}">${tag}</span>
-    <span class="log-msg">${msg}</span>
-  `;
-  terminalBody.appendChild(line);
-  terminalBody.scrollTop = terminalBody.scrollHeight;
-}
-
-/**
- * Map tag to CSS class name
- */
-function mapTagToClass(tag) {
-  const mapping = {
-    SYSTEM: "camera",
-    PAYMENT: "detect",
-    API_POST: "match",
-    RESULT: "result",
-    ERROR: "error",
-  };
-  return mapping[tag] || "camera";
 }
 
 // ── Run ────────────────────────────────────────────────────

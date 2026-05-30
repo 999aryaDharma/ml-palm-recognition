@@ -12,8 +12,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent  # ml/ (config.py ada di ml/scripts/)
 
 DATA_DIR = PROJECT_ROOT / "data"
-RAW_DIR = DATA_DIR / "tongji" / "raw"
-PROCESSED_DIR = DATA_DIR / "tongji" / "processed"
+RAW_DIR = DATA_DIR / "raw"
+PROCESSED_DIR = DATA_DIR / "processed"
 SPLITS_DIR = DATA_DIR / "splits"
 
 MODELS_DIR = PROJECT_ROOT / "models"
@@ -90,15 +90,15 @@ PHASE1_TARGET_VAL_ACC = 0.75  # gate: kalau < ini, debug pipeline
 # ============================================================================
 # Training Phase 2 (ArcFace Fine-tune)
 # ============================================================================
-PHASE2_EPOCHS = 30
+PHASE2_EPOCHS = 60
 PHASE2_BATCH_SIZE = 64
-PHASE2_LR = 5e-5
+PHASE2_LR = 1e-4
 PHASE2_WEIGHT_DECAY = 1e-4
 PHASE2_GRAD_CLIP_NORM = 5.0
 
-ARCFACE_MARGIN = 0.5
+ARCFACE_MARGIN = 0.7
 ARCFACE_SCALE = 64.0
-ARCFACE_MARGIN_WARMUP_EPOCHS = 5  # linear 0 → 0.5 selama 5 epoch
+ARCFACE_MARGIN_WARMUP_EPOCHS = 10  # linear 0 → 0.7 selama 10 epoch
 
 PHASE2_TARGET_COSINE_GAP = 0.4  # gate
 
@@ -116,12 +116,12 @@ MATCH_TOP_K = 3  # multi-sample matching: avg top-3 per user
 # ============================================================================
 # Augmentation (Tongji palm data — NO horizontal flip!)
 # ============================================================================
-AUG_ROTATE_DEG = 10
+AUG_ROTATE_DEG = 15
 AUG_CROP_SCALE = (0.9, 1.0)
-AUG_CROP_RATIO = (0.9, 1.1)
-AUG_BRIGHTNESS = 0.2
-AUG_CONTRAST = 0.2
-AUG_SATURATION = 0.1
+AUG_CROP_RATIO = (0.85, 1.15)
+AUG_BRIGHTNESS = 0.25
+AUG_CONTRAST = 0.25
+AUG_SATURATION = 0.15
 AUG_HUE = 0.05
 
 # ============================================================================

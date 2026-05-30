@@ -1,6 +1,6 @@
 // ============================================================
 // js/pages/patient.js — Patient Check-in demo
-// Full implementation: scanner → patient card → confirm check-in
+// Fixed: API call, patient card render, confirm flow, terminal
 // ============================================================
 
 import { mountNavbar } from "../components/navbar.js";
@@ -9,7 +9,6 @@ import { DiagnosticTerminal } from "../components/terminal.js";
 import { showModal } from "../components/modal.js";
 import { toast } from "../components/toast.js";
 import { apiFetch } from "../api/client.js";
-import { maskString } from "../utils.js";
 
 // ── State ──────────────────────────────────────────────────
 let scanner = null;
@@ -20,10 +19,6 @@ let pendingPatient = null;
 
 // ── DOM ────────────────────────────────────────────────────
 const scannerContainer = document.getElementById("scanner-container");
-const scannerVideo = document.getElementById("scanner-video");
-const scannerHint = document.getElementById("scanner-hint");
-const scannerResult = document.getElementById("scanner-result");
-const scannerPlaceholder = document.getElementById("scanner-placeholder");
 const terminalBody = document.getElementById("terminal-body");
 const patientPanel = document.getElementById("patient-panel");
 const btnStartScan = document.getElementById("btn-start-scan");
@@ -34,22 +29,25 @@ function init() {
   mountNavbar();
 
   terminal = new DiagnosticTerminal(terminalBody);
-  terminal.addLog("CAMERA_READY", "Patient check-in system initialized.");
+  terminal.addLog("SYSTEM", "Patient check-in system initialized.");
+  terminal.addLog("INFO", "Klik 'Pindai Pasien' untuk memulai identifikasi.");
 
   scanner = new PalmScanner({
     containerEl: scannerContainer,
-    videoEl: scannerVideo,
-    hintEl: scannerHint,
-    resultEl: scannerResult,
-    placeholderEl: scannerPlaceholder,
+    videoEl: document.getElementById("scanner-video"),
+    hintEl: document.getElementById("scanner-hint"),
+    resultEl: document.getElementById("scanner-result"),
+    placeholderEl: document.getElementById("scanner-placeholder"),
     logFn: (tag, msg) => terminal.addLog(tag, msg),
     onIdentified: handleIdentified,
     onUnknown: (score) => {
       terminal.addLog("RESULT", `UNKNOWN — score ${score.toFixed(4)}`);
       toast.warning("Pasien tidak dikenali. Silakan hubungi resepsionis.");
       showPatientNotFound();
+      enableStartButton();
     },
-    autoResetMs: 5000,
+    autoResetMs: 6000,
+    captureIntervalMs: 1500,
   });
 
   btnStartScan?.addEventListener("click", startScanner);
@@ -61,6 +59,7 @@ function init() {
   });
 }
 
+// ── Scanner ────────────────────────────────────────────────
 async function startScanner() {
   if (btnStartScan) {
     btnStartScan.disabled = true;
@@ -71,12 +70,24 @@ async function startScanner() {
   await scanner.start();
 }
 
+function enableStartButton() {
+  if (btnStartScan) {
+    btnStartScan.disabled = false;
+    btnStartScan.textContent = "🖐 Pindai Pasien";
+  }
+}
+
 // ── Identification callback ────────────────────────────────
 async function handleIdentified(user, score, latency) {
   if (isProcessing) return;
   isProcessing = true;
 
-  terminal.addLog("MATCHING", `${user.name} — score ${score.toFixed(4)}`);
+  terminal.addLog(
+    "MATCHING",
+    `${user.name} — score ${score.toFixed(4)} — ${latency}ms`,
+  );
+
+  // Stop auto-scan while showing patient card
   scanner.stop();
 
   try {
@@ -85,17 +96,26 @@ async function handleIdentified(user, score, latency) {
       body: JSON.stringify({ user_id: user.id, match_score: score }),
     });
 
-    terminal.addLog("RESULT", `PATIENT FOUND — ${user.name}`);
-    pendingUser = result.user;
-    pendingPatient = result.patient;
-    showPatientCard(result.user, result.patient, score);
+    terminal.addLog("RESULT", `✅ PATIENT FOUND — ${user.name}`);
+    terminal.addLog(
+      "PATIENT",
+      `Rekam medik: ${result.patient?.rekam_medik || "—"}`,
+    );
+    terminal.addLog("PATIENT", `Dokter PJ: ${result.patient?.dokter || "—"}`);
+
+    pendingUser = result.user || user;
+    pendingPatient = result.patient || {};
+
+    showPatientCard(pendingUser, pendingPatient, score);
+
     if (btnConfirmCheckin) btnConfirmCheckin.classList.remove("hidden");
   } catch (err) {
-    terminal.addLog("ERROR", err.message);
-    toast.error("Gagal mengambil data pasien.");
+    terminal.addLog("ERROR", err.message || "Gagal mengambil data pasien");
+    toast.error("Gagal mengambil data pasien. Cek koneksi backend.");
+    showPatientError(err.message);
+    enableStartButton();
   } finally {
     isProcessing = false;
-    resetStartButton();
   }
 }
 
@@ -111,9 +131,13 @@ function showPatientCard(user, patient, score) {
         </div>
         <div>
           <div style="font-family:var(--font-heading);font-size:1.2rem;font-weight:700">${escHtml(user.name)}</div>
-          <div style="display:flex;gap:8px;margin-top:4px">
-            <span class="badge badge--identified"><span class="status-dot"></span>Teridentifikasi</span>
-            <span style="font-family:monospace;font-size:11px;color:var(--color-coffee-light)">Score: ${score.toFixed(4)}</span>
+          <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap">
+            <span class="badge badge--identified">
+              <span class="status-dot status-dot--pulse"></span>Teridentifikasi
+            </span>
+            <span style="font-family:monospace;font-size:11px;color:var(--color-coffee-light)">
+              Score: ${score.toFixed(4)}
+            </span>
           </div>
         </div>
       </div>
@@ -121,32 +145,32 @@ function showPatientCard(user, patient, score) {
       <div class="patient-meta">
         <div>
           <div class="patient-field-label">NIK</div>
-          <div class="patient-field-value" style="font-family:monospace">${escHtml(patient.nik)}</div>
+          <div class="patient-field-value" style="font-family:monospace">${escHtml(patient.nik || "—")}</div>
         </div>
         <div>
           <div class="patient-field-label">No. Rekam Medik</div>
-          <div class="patient-field-value" style="font-family:monospace">${escHtml(patient.rekam_medik)}</div>
+          <div class="patient-field-value" style="font-family:monospace">${escHtml(patient.rekam_medik || "—")}</div>
         </div>
         <div>
           <div class="patient-field-label">Dokter PJ</div>
-          <div class="patient-field-value">${escHtml(patient.dokter)}</div>
+          <div class="patient-field-value">${escHtml(patient.dokter || "—")}</div>
         </div>
         <div>
           <div class="patient-field-label">Jadwal</div>
-          <div class="patient-field-value">${escHtml(patient.jadwal)}</div>
+          <div class="patient-field-value">${escHtml(patient.jadwal || "—")}</div>
         </div>
         <div>
           <div class="patient-field-label">Kunjungan Terakhir</div>
-          <div class="patient-field-value">${escHtml(patient.last_visit)}</div>
+          <div class="patient-field-value">${escHtml(patient.last_visit || "—")}</div>
         </div>
         <div>
           <div class="patient-field-label">Waktu Check-in</div>
-          <div class="patient-field-value">${new Date().toLocaleTimeString("id-ID")}</div>
+          <div class="patient-field-value">${new Date().toLocaleString("id-ID")}</div>
         </div>
       </div>
 
       <div class="hint-box hint-box--info" style="margin-top:16px">
-        <p class="text-xs">Periksa data pasien lalu klik <strong>Konfirmasi Check-in</strong> untuk menyelesaikan proses.</p>
+        <p class="text-xs">Periksa data pasien lalu klik <strong>Konfirmasi Check-in</strong> di bawah untuk menyelesaikan proses.</p>
       </div>
     </div>
   `;
@@ -155,20 +179,35 @@ function showPatientCard(user, patient, score) {
 function showPatientNotFound() {
   if (!patientPanel) return;
   patientPanel.innerHTML = `
-    <div style="text-align:center;padding:40px 20px">
-      <div style="font-size:3rem;margin-bottom:16px">❌</div>
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:var(--space-10) var(--space-6);text-align:center">
+      <div style="font-size:3rem;margin-bottom:var(--space-4)">❌</div>
       <h3 style="color:var(--color-coral)">Pasien Tidak Dikenali</h3>
-      <p class="text-sm" style="margin-top:8px">Silakan hubungi petugas resepsionis untuk proses manual.</p>
+      <p class="text-sm" style="margin-top:8px;color:var(--color-coffee-light)">
+        Silakan hubungi petugas resepsionis untuk proses manual.
+      </p>
     </div>
   `;
+  if (btnConfirmCheckin) btnConfirmCheckin.classList.add("hidden");
+}
+
+function showPatientError(message) {
+  if (!patientPanel) return;
+  patientPanel.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:var(--space-10) var(--space-6);text-align:center">
+      <div style="font-size:3rem;margin-bottom:var(--space-4)">⚠️</div>
+      <h3 style="color:var(--color-honey)">Gagal Mengambil Data</h3>
+      <p class="text-sm" style="margin-top:8px;color:var(--color-coffee-light)">${escHtml(message || "Cek koneksi backend.")}</p>
+    </div>
+  `;
+  if (btnConfirmCheckin) btnConfirmCheckin.classList.add("hidden");
 }
 
 function clearPatientCard() {
   if (!patientPanel) return;
   patientPanel.innerHTML = `
-    <div style="text-align:center;padding:40px 20px;opacity:0.4">
-      <div style="font-size:3rem;margin-bottom:12px">🏥</div>
-      <p>Pindai telapak tangan pasien untuk melihat data rekam medis.</p>
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:var(--space-10) var(--space-4);opacity:0.35;text-align:center">
+      <div style="font-size:3rem;margin-bottom:var(--space-4)">🏥</div>
+      <p class="text-sm">Pindai telapak tangan pasien untuk melihat data rekam medis.</p>
     </div>
   `;
   if (btnConfirmCheckin) btnConfirmCheckin.classList.add("hidden");
@@ -176,13 +215,18 @@ function clearPatientCard() {
   pendingPatient = null;
 }
 
+// ── Confirm check-in ───────────────────────────────────────
 async function confirmCheckin() {
   if (!pendingUser) return;
 
   showModal({
     title: "Konfirmasi Check-in Pasien",
     icon: "✅",
-    message: `Check-in untuk <strong>${escHtml(pendingUser.name)}</strong> pada ${new Date().toLocaleString("id-ID")} akan dicatat ke sistem.`,
+    message: `
+      Check-in untuk <strong>${escHtml(pendingUser.name)}</strong>
+      pada <strong>${new Date().toLocaleString("id-ID")}</strong>
+      akan dicatat ke sistem.
+    `,
     confirmLabel: "Konfirmasi Check-in",
     confirmVariant: "success",
     onConfirm: async () => {
@@ -191,24 +235,22 @@ async function confirmCheckin() {
         "Berhasil",
       );
       terminal.addLog("RESULT", `CHECK-IN CONFIRMED — ${pendingUser.name}`);
+
       if (btnConfirmCheckin) btnConfirmCheckin.classList.add("hidden");
 
-      // Reset after 2s
+      // Reset after short delay so user can see success state
       setTimeout(() => {
         clearPatientCard();
-        resetStartButton();
+        enableStartButton();
       }, 2000);
+    },
+    onCancel: () => {
+      // Allow re-confirm
     },
   });
 }
 
-function resetStartButton() {
-  if (btnStartScan) {
-    btnStartScan.disabled = false;
-    btnStartScan.textContent = "Pindai Pasien";
-  }
-}
-
+// ── Escape helper ──────────────────────────────────────────
 function escHtml(s) {
   return String(s).replace(
     /[&<>"']/g,

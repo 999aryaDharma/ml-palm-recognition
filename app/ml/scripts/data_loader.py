@@ -60,11 +60,10 @@ def get_train_transform():
         return A.Compose([
             A.Rotate(limit=AUG_ROTATE_DEG, p=0.8, border_mode=0),
             A.RandomResizedCrop(
-                height=ROI_SIZE,
-                width=ROI_SIZE,
+                size=(ROI_SIZE, ROI_SIZE),
                 scale=AUG_CROP_SCALE,
                 ratio=AUG_CROP_RATIO,
-                p=0.5,
+                p=1.0,
             ),
             A.ColorJitter(
                 brightness=AUG_BRIGHTNESS,
@@ -73,6 +72,8 @@ def get_train_transform():
                 hue=AUG_HUE,
                 p=0.5,
             ),
+            A.GaussianBlur(blur_limit=(3, 5), p=0.2),
+            A.GaussNoise(var_limit=(10.0, 30.0), p=0.1),
             A.Normalize(mean=NORM_MEAN, std=NORM_STD),
             ToTensorV2(),
         ])
@@ -90,6 +91,7 @@ def get_train_transform():
                 saturation=AUG_SATURATION,
                 hue=AUG_HUE,
             ),
+            T.GaussianBlur(kernel_size=(3, 5), sigma=(0.1, 2.0)),
             T.ToTensor(),
             T.Normalize(mean=NORM_MEAN, std=NORM_STD),
         ])
