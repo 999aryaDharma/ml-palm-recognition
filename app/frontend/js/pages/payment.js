@@ -47,7 +47,7 @@ function init() {
 
   terminal = new DiagnosticTerminal(terminalBody);
   terminal.addLog("SYSTEM", "Palm Payment module loaded.");
-  terminal.addLog("SYSTEM", "Klik 'Bayar dengan Telapak' untuk mulai.");
+  terminal.addLog("INSTRUCTION", "Langkah 1: Klik tombol 'Bayar dengan Telapak'.");
 
   // Build PalmScanner — note: scanner is created once, start() called on button click
   scanner = new PalmScanner({
@@ -74,6 +74,7 @@ function init() {
       "SYSTEM",
       "Payment mode activated. Waiting for palm scan...",
     );
+    terminal.addLog("INSTRUCTION", "Langkah 2: Hadapkan telapak tangan ke kamera.");
     await scanner.start();
   });
 

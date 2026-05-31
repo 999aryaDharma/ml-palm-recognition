@@ -5,6 +5,9 @@
 import { logTimestamp } from "../utils.js";
 
 const TAG_CLASSES = {
+  SYSTEM: "log-tag--camera",
+  INFO: "log-tag--embed",
+  INSTRUCTION: "log-tag--match",
   CAMERA_READY: "log-tag--camera",
   CAPTURE: "log-tag--camera",
   DETECTION: "log-tag--detect",

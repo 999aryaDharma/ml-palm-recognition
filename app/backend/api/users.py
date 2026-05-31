@@ -130,7 +130,13 @@ async def add_template(
     # ── Refresh cache so new template is available for matching ───────────────
     cache = getattr(request.app.state, "cache", None)
     if cache is not None:
-        cache.refresh(db)
+        try:
+            cache.refresh(db)
+        except Exception as exc:
+            # Log error but don't fail the request – template is already in DB
+            import logging
+            logger = logging.getLogger("palm-api")
+            logger.error("Failed to refresh cache after template upload: %s", exc)
 
     return TemplateCreateResponse(
         template_id=template.id,

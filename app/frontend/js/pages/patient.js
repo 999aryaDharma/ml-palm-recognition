@@ -30,7 +30,8 @@ function init() {
 
   terminal = new DiagnosticTerminal(terminalBody);
   terminal.addLog("SYSTEM", "Patient check-in system initialized.");
-  terminal.addLog("INFO", "Klik 'Pindai Pasien' untuk memulai identifikasi.");
+  terminal.addLog("INSTRUCTION", "Langkah 1: Klik 'Aktifkan Scanner Pasien'.");
+  terminal.addLog("INSTRUCTION", "Langkah 2: Arahkan telapak tangan pasien ke kamera.");
 
   scanner = new PalmScanner({
     containerEl: scannerContainer,

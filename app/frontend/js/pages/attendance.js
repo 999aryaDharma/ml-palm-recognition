@@ -35,10 +35,8 @@ function init() {
 
   terminal = new DiagnosticTerminal(terminalBody);
   terminal.addLog("SYSTEM", "Attendance system initialized.");
-  terminal.addLog(
-    "INFO",
-    "Pilih mode Check-in atau Check-out lalu klik Mulai Scan.",
-  );
+  terminal.addLog("INSTRUCTION", "Langkah 1: Pilih mode Check-in atau Check-out.");
+  terminal.addLog("INSTRUCTION", "Langkah 2: Klik 'Mulai Scan Absensi'.");
 
   // Mode buttons
   btnCheckin?.addEventListener("click", () => setMode("checkin"));
@@ -189,7 +187,7 @@ function addAttendanceEntry(user, result) {
   if (!attendanceList) return;
 
   // Remove empty-state placeholder on first real entry
-  const placeholder = attendanceList.querySelector("p");
+  const placeholder = document.getElementById("attendance-empty");
   if (placeholder) placeholder.remove();
 
   const time = result?.timestamp

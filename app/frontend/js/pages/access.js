@@ -32,8 +32,8 @@ function init() {
 
   terminal = new DiagnosticTerminal(terminalBody);
   terminal.addLog("SYSTEM", "Access control system initialized.");
-  terminal.addLog("INFO", "Centang pengguna yang diotorisasi di panel kiri.");
-  terminal.addLog("INFO", "Klik Mulai Scan untuk mengaktifkan pemindai.");
+  terminal.addLog("INSTRUCTION", "Langkah 1: Pilih pengguna yang diotorisasi.");
+  terminal.addLog("INSTRUCTION", "Langkah 2: Klik 'Aktifkan Scanner Area'.");
 
   scanner = new PalmScanner({
     containerEl: scannerContainer,

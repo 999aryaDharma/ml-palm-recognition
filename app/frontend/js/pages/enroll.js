@@ -34,7 +34,7 @@ import { mountNavbar } from "../components/navbar.js";
 import { WebcamCapture } from "../components/webcam.js";
 import { createUser, addTemplate, deleteUser } from "../api/users.js";
 import { identify } from "../api/identify.js";
-import { apiFetch } from "../api/client.js";
+import { apiFetch, BASE_URL } from "../api/client.js";
 import { toast } from "../components/toast.js";
 import { QUALITY_HINTS, sleep } from "../utils.js";
 
@@ -72,11 +72,22 @@ const successName = document.getElementById("success-name");
 function init() {
   mountNavbar();
 
-  btnToCapture.addEventListener("click", goToCaptureStep);
+  // Fix: Handle form submission to prevent page reload
+  const formName = document.getElementById("form-name");
+  if (formName) {
+    formName.addEventListener("submit", (e) => {
+      e.preventDefault();
+      goToCaptureStep();
+    });
+  }
+
   btnCancelCapture.addEventListener("click", cancelEnrollment);
 
   inputName.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") goToCaptureStep();
+    if (e.key === "Enter") {
+      e.preventDefault();
+      goToCaptureStep();
+    }
   });
 
   inputName.focus();
@@ -284,7 +295,7 @@ async function runVerification() {
     toast.warning(err.message || "Verifikasi gagal. Scan ulang diperlukan.");
 
     // Kembali ke capture — template yang sudah ada tetap berguna
-    sampleCount = 0;
+    // FIX: Jangan reset sampleCount agar user tidak dihapus saat cleanupOnExit
     updateProgress();
     showStep("capture");
     setHint("🔄 Scan ulang untuk verifikasi.");
@@ -361,13 +372,14 @@ async function cancelEnrollment() {
 function cleanupOnExit() {
   webcam?.stop();
 
-  // Hapus user "setengah jadi" (< 5 template) via sendBeacon
-  if (isUserCreated && currentUserId && sampleCount < MAX_SAMPLES) {
-    const url = `http://localhost:8000/users/${currentUserId}`;
+  // Hanya hapus jika user terlanjur dibuat tapi BELUM ada template sama sekali
+  // Jika sudah ada > 0 template, biarkan saja (user bisa hapus manual nanti)
+  // Ini menghindari user terhapus saat berpindah ke halaman detail/success.
+  if (isUserCreated && currentUserId && sampleCount === 0) {
+    const url = `${BASE_URL}/users/${currentUserId}`;
     if (navigator.sendBeacon) {
-      // sendBeacon tidak support DELETE, pakai workaround dengan header custom
-      // atau biarkan backend cleanup job yang menghapus user tanpa template
-      // Solusi pragmatis: gunakan fetch dengan keepalive
+      // sendBeacon tidak support DELETE secara standar, 
+      // tapi kita coba fetch dengan keepalive sebagai alternatif modern
       fetch(url, { method: "DELETE", keepalive: true }).catch(() => {});
     }
   }
