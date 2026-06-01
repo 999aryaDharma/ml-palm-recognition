@@ -33,6 +33,8 @@ async def identify_palm(
             detail={
                 "error": result.get("error_code", "detection_failed"),
                 "message": _error_message(result.get("error_code", "detection_failed")),
+                "bbox": result.get("bbox"),
+                "landmarks": result.get("landmarks"),
             },
         )
 
@@ -45,6 +47,9 @@ async def identify_palm(
         user=user,
         score=round(result["score"], 4),
         latency_ms=latency_ms,
+        bbox=result.get("bbox"),
+        landmarks=result.get("landmarks"),
+        quality_score=result.get("quality_score"),
     )
 
 

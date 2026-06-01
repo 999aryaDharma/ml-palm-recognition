@@ -47,6 +47,15 @@ let sampleCount = 0;
 const MAX_SAMPLES = 5;
 let isCapturing = false;
 let isUserCreated = false; // guard: true setelah createUser() berhasil
+let steps = {}; // mapping untuk DOM section langkah-langkah
+
+const ENROLL_HINTS = [
+  "🔍 Tahan posisi telapak lurus dan tegak di depan kamera",
+  "🔄 Sampel 2/5: Miringkan telapak sedikit ke arah kiri",
+  "🔄 Sampel 3/5: Miringkan telapak sedikit ke arah kanan",
+  "⬆️ Sampel 4/5: Majukan telapak sedikit mendekati kamera",
+  "⬇️ Sampel 5/5: Mundurkan telapak sedikit menjauhi kamera",
+];
 
 // ── DOM Elements ───────────────────────────────────────────
 let inputName, btnToCapture, btnCancelCapture;
@@ -68,6 +77,13 @@ async function init() {
   sampleBadge = document.getElementById("sample-count-badge");
   sampleDots = document.querySelectorAll(".step-dot");
   successName = document.getElementById("success-name");
+
+  steps = {
+    name: document.getElementById("step-name"),
+    capture: document.getElementById("step-capture"),
+    verifying: document.getElementById("step-verifying"),
+    success: document.getElementById("step-success"),
+  };
 
   if (!inputName || !btnToCapture) {
     console.error("[Enroll] Essential DOM elements not found!");
@@ -138,11 +154,11 @@ async function initWebcam() {
   try {
     webcam = new WebcamCapture(videoEl, {
       onCapture: handleCapture,
-      captureInterval: 1800,
+      captureInterval: 1500, // Faster polling, but we gate it with isCapturing
     });
 
     await webcam.start();
-    setHint("🖐 Tunjukkan telapak tangan ke kamera");
+    setHint(ENROLL_HINTS[0] || "🖐 Tunjukkan telapak tangan ke kamera");
     webcam.startAutoCapture();
   } catch (err) {
     setHint("❌ Tidak dapat mengakses kamera", true);
@@ -186,10 +202,16 @@ async function handleCapture(blob) {
         const hint =
           QUALITY_HINTS[valErr.error] || "Arahkan telapak tangan ke kamera";
         setHint(hint);
-        return; // isCapturing di-reset di finally
+        isCapturing = false;
+        scannerLoading.classList.add("hidden");
+        return;
       }
 
-      if (!validateOk) return;
+      if (!validateOk) {
+        isCapturing = false;
+        scannerLoading.classList.add("hidden");
+        return;
+      }
 
       // Frame valid → sekarang baru buat user di backend
       setHint("⏳ Mendaftarkan pengguna...");
@@ -199,6 +221,8 @@ async function handleCapture(blob) {
       } catch (createErr) {
         setHint("❌ Gagal terhubung ke server. Cek backend.", true);
         toast.error("Backend tidak dapat dihubungi.");
+        isCapturing = false;
+        scannerLoading.classList.add("hidden");
         return;
       }
 
@@ -209,8 +233,25 @@ async function handleCapture(blob) {
         isUserCreated = true;
         sampleCount = 1;
         updateProgress();
-        setHint(`✅ Sampel 1/${MAX_SAMPLES} — tahan posisi...`);
-        toast.success(`Sampel 1/${MAX_SAMPLES} berhasil.`, "Sampel Diambil");
+        
+        // UX: Freeze kamera sesaat untuk feedback sukses
+        videoEl.pause();
+        webcam.stopAutoCapture();
+        scanline.classList.add("hidden");
+        
+        toast.success(`Template 1/5 berhasil disimpan.`, "Berhasil");
+        setHint(`✅ Sampel 1/5 OK!`);
+        await sleep(1500); // Tahan freeze
+        
+        // Resume
+        const nextHint = ENROLL_HINTS[sampleCount] || "Tahan posisi...";
+        setHint(nextHint);
+        videoEl.play();
+        webcam.startAutoCapture();
+        
+        // Jeda tambahan agar user sempat mengubah pose tangan sebelum kamera mengambil sampel lagi
+        await sleep(2000); 
+
       } catch (templateErr) {
         // Aneh tapi bisa terjadi (race condition): validasi lolos tapi addTemplate gagal
         // Hapus user yang baru dibuat agar tidak jadi "hantu"
@@ -218,32 +259,51 @@ async function handleCapture(blob) {
         const hint =
           QUALITY_HINTS[templateErr.error] || "Posisikan ulang telapak";
         setHint(hint);
+        isCapturing = false;
+        scannerLoading.classList.add("hidden");
         return;
       }
     } else {
       // ============================================================
       // FASE 2: User sudah ada. Langsung upload template berikutnya.
       // ============================================================
-      setHint(`📷 Mengambil sampel ${sampleCount + 1}...`);
+      setHint(`📷 Mengekstrak sampel ${sampleCount + 1}...`);
 
       try {
         await addTemplate(currentUserId, blob);
         sampleCount++;
         updateProgress();
 
+        // UX: Freeze kamera sesaat
+        videoEl.pause();
+        webcam.stopAutoCapture();
+        scanline.classList.add("hidden");
+
         if (sampleCount >= MAX_SAMPLES) {
-          webcam.stopAutoCapture();
-          scanline.classList.add("hidden");
-          setHint("✅ Semua sampel terkumpul! Memverifikasi...");
+          setHint("✅ 5/5 Sampel terkumpul! Mempersiapkan verifikasi...", "success");
+          toast.success("5 template berhasil dikumpulkan.", "Sukses");
+          
+          await sleep(2000);
+          videoEl.play();
+          
           await runVerification();
         } else {
-          setHint(
-            `👍 Sampel ${sampleCount}/${MAX_SAMPLES} OK — tahan posisi...`,
-          );
+          setHint(`✅ Sampel ${sampleCount}/5 OK!`);
           toast.success(
-            `Sampel ${sampleCount}/${MAX_SAMPLES} berhasil.`,
-            "Sampel Diambil",
+            `Template ${sampleCount}/5 berhasil disimpan.`,
+            "Berhasil",
           );
+          
+          await sleep(1500); // Tahan freeze
+          
+          // Lanjut ke sampel berikutnya
+          const nextHint = ENROLL_HINTS[sampleCount] || "Tahan posisi...";
+          setHint(nextHint);
+          videoEl.play();
+          webcam.startAutoCapture();
+          
+          // Jeda tambahan agar user sempat mengubah pose tangan sebelum kamera mengambil sampel lagi
+          await sleep(2000);
         }
       } catch (err) {
         const hint =
@@ -252,10 +312,13 @@ async function handleCapture(blob) {
       }
     }
   } finally {
-    isCapturing = false;
-    scannerLoading.classList.add("hidden");
+    // Only un-flag capturing if we are still collecting samples
     if (sampleCount < MAX_SAMPLES) {
-      setTimeout(() => scanline.classList.add("hidden"), 400);
+      isCapturing = false;
+      scannerLoading.classList.add("hidden");
+      if (webcam?.isRunning && videoEl.paused === false) {
+        scanline.classList.remove("hidden");
+      }
     }
   }
 }
@@ -302,6 +365,7 @@ async function runVerification() {
     showStep("capture");
     setHint("🔄 Scan ulang untuk verifikasi.");
 
+    isCapturing = false;
     if (webcam?.isRunning) {
       webcam.startAutoCapture();
     } else {

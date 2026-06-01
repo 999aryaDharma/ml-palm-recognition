@@ -38,10 +38,11 @@ export class WebcamCapture {
   async start() {
     if (this.stream) return; // already running
 
+    // BUG FIX: Do not force specific width/height ideally as it can cause 
+    // the camera to rotate 90 degrees on mobile devices that have a native 
+    // portrait orientation. Let the browser decide the best resolution.
     const constraints = {
       video: {
-        width: { ideal: this.width },
-        height: { ideal: this.height },
         facingMode: "user",
         frameRate: { ideal: 30 },
       },
@@ -100,12 +101,12 @@ export class WebcamCapture {
     this._canvas.height = h;
 
     const ctx = this._canvas.getContext("2d");
-    // Mirror to match video display (canvas captures pre-mirror)
-    ctx.save();
-    ctx.translate(w, 0);
-    ctx.scale(-1, 1);
+    
+    // Do NOT mirror the canvas context. 
+    // The visual UI is mirrored via CSS (transform: scaleX(-1)), 
+    // but the raw image sent to the ML model MUST be unmirrored 
+    // to preserve consistent spatial orientation of the palm lines.
     ctx.drawImage(video, 0, 0, w, h);
-    ctx.restore();
 
     return new Promise((resolve) =>
       this._canvas.toBlob(resolve, "image/jpeg", quality),

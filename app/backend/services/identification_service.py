@@ -32,34 +32,38 @@ class IdentificationService:
         """
         start_ms = time.time() * 1000
 
-        def _err(code: str):
-            return {"status": "error", "user_id": None, "user_name": None,
+        def _err(code: str, detection_data: dict | None = None):
+            res = {"status": "error", "user_id": None, "user_name": None,
                     "score": 0.0, "error_code": code}
+            if detection_data:
+                res["bbox"] = detection_data.get("bbox")
+                res["landmarks"] = detection_data.get("landmarks")
+            return res, int(time.time() * 1000 - start_ms)
 
         # ── Guards ────────────────────────────────────────────────────────────
         if self.detector is None or self.recognizer is None:
-            return _err("backend_not_ready"), 0
+            return _err("backend_not_ready")
 
         # ── Stage 1: Hand detection ───────────────────────────────────────────
         detection = self.detector.detect(image)
         if detection is None:
-            return _err("detection_failed"), int(time.time() * 1000 - start_ms)
+            return _err("detection_failed")
 
         # ── Stage 2a: ROI extraction ──────────────────────────────────────────
         from ml.roi import extract_palm_roi
         roi = extract_palm_roi(image, detection["landmarks"])
         if roi is None:
-            return _err("roi_extraction_failed"), int(time.time() * 1000 - start_ms)
+            return _err("roi_extraction_failed", detection)
 
         # ── Stage 2b: Embedding ───────────────────────────────────────────────
         embedding = self.recognizer.extract_embedding(roi)
         if embedding is None:
-            return _err("image_too_blurry"), int(time.time() * 1000 - start_ms)
+            return _err("image_too_blurry", detection)
 
         # ── Stage 3: Matching ─────────────────────────────────────────────────
         enrolled = self.cache.get_all() if self.cache else []
         if not enrolled:
-            return _err("no_templates_enrolled"), int(time.time() * 1000 - start_ms)
+            return _err("no_templates_enrolled", detection)
 
         threshold = self.settings.default_threshold if self.settings else 0.70
         top_k     = self.settings.top_k_templates   if self.settings else 3
@@ -90,6 +94,9 @@ class IdentificationService:
                 "user_id":   best_user_id,
                 "user_name": best_name,
                 "score":     best_score,
+                "bbox":      detection.get("bbox"),
+                "landmarks": detection.get("landmarks"),
+                "quality_score": 1.0, # Simplified for now
             }, latency_ms
 
         return {
@@ -97,6 +104,9 @@ class IdentificationService:
             "user_id":   None,
             "user_name": None,
             "score":     max(0.0, best_score),
+            "bbox":      detection.get("bbox"),
+            "landmarks": detection.get("landmarks"),
+            "quality_score": 1.0,
         }, latency_ms
 
 

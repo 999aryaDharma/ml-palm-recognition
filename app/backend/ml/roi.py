@@ -77,5 +77,11 @@ def extract_palm_roi(image: Image.Image, landmarks: list[dict], output_size: int
     roi = rotated[y1:y2, x1:x2]
     roi_resized = cv2.resize(roi, (output_size, output_size), interpolation=cv2.INTER_AREA)
 
+    # Blur check via Laplacian variance
+    gray = cv2.cvtColor(roi_resized, cv2.COLOR_BGR2GRAY)
+    lap_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+    if lap_var < 50.0:  # BLUR_THRESHOLD_LAPLACIAN
+        return None
+
     roi_rgb = cv2.cvtColor(roi_resized, cv2.COLOR_BGR2RGB)
     return Image.fromarray(roi_rgb)

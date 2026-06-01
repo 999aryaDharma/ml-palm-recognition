@@ -145,17 +145,39 @@ export class PalmScanner {
     this.isProcessing = true;
 
     this._setState("processing");
+    this._setHint("🔍 Mendeteksi telapak tangan...", "info");
     if (this.processingLabelEl)
-      this.processingLabelEl.textContent = "Mengidentifikasi...";
+      this.processingLabelEl.textContent = "Mendeteksi...";
     this.logFn("CAPTURE", "Frame captured, sending to backend...");
 
     try {
       const result = await identify(blob);
 
-      if (result.status === "identified") {
+      // Immediate feedback: Update bounding box as soon as we have detection data
+      if (result.bbox) {
+        this.boundingBox.update({
+          bbox: result.bbox,
+          landmarks: result.landmarks || [],
+          quality: result.quality_score,
+          score: result.score,
+          label: result.status === "identified" ? "PALM MATCHED" : "PALM DETECTED",
+          state: result.status === "identified" ? "matched" : "detected",
+        });
         this.containerEl?.classList.add("scanner--detected");
         this.containerEl?.classList.remove("scanner--no-palm");
+      }
 
+      // Granular feedback loop for UX transparency
+      this._setHint("📐 Mengekstrak ROI...", "info");
+      if (this.processingLabelEl) this.processingLabelEl.textContent = "Mengekstrak...";
+      await new Promise((r) => setTimeout(r, 200));
+
+      this._setHint("🔢 Mencocokkan biometrik...", "info");
+      if (this.processingLabelEl)
+        this.processingLabelEl.textContent = "Mencocokkan...";
+      await new Promise((r) => setTimeout(r, 200));
+
+      if (result.status === "identified") {
         this.logFn("DETECTION", "21 landmarks detected");
         this.logFn("ROI_EXTRACTION", "Palm ROI normalized to 112×112");
         this.logFn("EMBEDDING", "128-d vector generated");
@@ -165,19 +187,12 @@ export class PalmScanner {
         );
         this.logFn("RESULT", `IDENTIFIED: ${result.user.name}`);
 
-        // Update bounding box with detected palm
-        if (result.bbox) {
-          this.boundingBox.update({
-            bbox: result.bbox,
-            landmarks: result.landmarks || [],
-            quality: result.quality_score,
-            label: "MATCHED",
-            state: "matched",
-          });
+        if (!this.autoResumeOnIdentified) {
+          this._webcam.stopAutoCapture();
         }
-
-        this._webcam.stopAutoCapture();
+        
         this._setState("identified");
+        this._setHint("✅ Identitas Terdeteksi", "success");
 
         this._showResult({
           type: "success",
@@ -191,29 +206,23 @@ export class PalmScanner {
         this.onIdentified(result.user, result.score, result.latency_ms);
 
         if (this.autoResumeOnIdentified) {
-          this._resetTimer = setTimeout(() => this.resume(), this.autoResetMs);
+          // Hanya sembunyikan result overlay setelah beberapa saat,
+          // Kamera TETAP lanjut mendeteksi di background tanpa jeda.
+          this._resetTimer = setTimeout(() => {
+              this._hideResult();
+              this._setState("scanning");
+              this._setHint("🖐 Tunjukkan telapak tangan ke kamera");
+              this.boundingBox.searching();
+          }, this.autoResetMs);
         }
       } else {
-        // Unknown (but hand was detected since it didn't throw error)
-        this.containerEl?.classList.add("scanner--detected");
-        this.containerEl?.classList.remove("scanner--no-palm");
-
+        // Unknown
         this.logFn("RESULT", `UNKNOWN — score ${result.score.toFixed(4)}`);
-
-        // Update bounding box for unknown match
-        if (result.bbox) {
-          this.boundingBox.update({
-            bbox: result.bbox,
-            landmarks: result.landmarks || [],
-            quality: result.quality_score,
-            label: "UNKNOWN",
-            state: "detected",
-          });
-        }
 
         if (this.pauseOnUnknown) {
           this._webcam.stopAutoCapture();
           this._setState("unknown");
+          this._setHint("⚠️ Pengguna tidak dikenali", "warning");
           this._showResult({
             type: "unknown",
             title: "Pengguna Tidak Dikenali",
@@ -235,41 +244,40 @@ export class PalmScanner {
     } catch (err) {
       // Hand not detected or other quality error
       this.containerEl?.classList.remove("scanner--detected");
-      if (
-        err.error === "no_hand_detected" ||
-        err.error === "detection_failed"
+      
+      // Update bounding box if data is available in error detail
+      const errorDetail = err.detail || err;
+      if (errorDetail.bbox) {
+         this.boundingBox.update({
+            bbox: errorDetail.bbox,
+            landmarks: errorDetail.landmarks || [],
+            quality: errorDetail.quality_score,
+            label: "QUALITY LOW",
+            state: "quality-low",
+         });
+         this.containerEl?.classList.add("scanner--detected");
+      } else if (
+        errorDetail.error === "no_hand_detected" ||
+        errorDetail.error === "detection_failed"
       ) {
         this.containerEl?.classList.add("scanner--no-palm");
         this.boundingBox.lost("NO PALM");
       } else {
-        this.containerEl?.classList.remove("scanner--no-palm");
-        // Update bounding box for quality error
-        if (err.bbox) {
-          this.boundingBox.update({
-            bbox: err.bbox,
-            landmarks: err.landmarks || [],
-            quality: err.quality_score,
-            label: "QUALITY LOW",
-            state: "quality-low",
-          });
-        } else {
-          this.boundingBox.searching();
-        }
+        this.boundingBox.searching();
       }
 
-      const hint = QUALITY_HINTS[err.error] || "⚠️ Coba scan ulang";
-      this._setHint(hint, err.error ? "" : "error");
+      const hint = QUALITY_HINTS[errorDetail.error] || "⚠️ Coba scan ulang";
+      this._setHint(hint, errorDetail.error ? "" : "error");
 
-      // Jangan spam console.error untuk error kualitas (seperti tangan tidak terdeteksi)
-      if (err.status !== 400 || !err.error) {
-        this.logFn("ERROR", err.error || err.message || "Unknown error");
+      // ... rest same
+      if (err.status !== 400 || !errorDetail.error) {
+        this.logFn("ERROR", errorDetail.error || err.message || "Unknown error");
         console.error("[PalmScanner] Unhandled Error:", err);
       } else {
-        // Cukup tampilkan di terminal log, bukan error console merah
-        this.logFn("QUALITY_GATE", err.detail || hint);
+        this.logFn("QUALITY_GATE", errorDetail.message || hint);
       }
 
-      this._setState("scanning"); // Continue loop; don't block on quality errors
+      this._setState("scanning");
       this.onError(err);
     } finally {
       this.isProcessing = false;
@@ -289,16 +297,12 @@ export class PalmScanner {
       "scanner--paused",
       "scanner--requesting-camera",
       "scanner--camera-ready",
-      "scanner--detected",
       "scanner--no-palm",
     );
 
-    if (state === "scanning" || state === "camera-ready") {
-      // Reset detection indicators when starting new scan cycle
-      this.containerEl.classList.remove(
-        "scanner--detected",
-        "scanner--no-palm",
-      );
+    // Only remove "scanner--detected" if we are going back to idle, error, or specifically told to
+    if (state === "idle" || state === "error" || state === "camera-ready") {
+      this.containerEl.classList.remove("scanner--detected");
     }
 
     if (state !== "idle") this.containerEl.classList.add(`scanner--${state}`);

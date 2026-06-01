@@ -1,6 +1,18 @@
 // ============================================================
 // js/components/palm-bounding-box.js
 // Shared visual overlay for palm detection bounding box
+//
+// BUG FIXES v2:
+//   1. ReferenceError: "const cornerMarkup = cornerMarkup(box)" — nama
+//      variabel lokal bentrok dengan nama fungsi module. Diganti ke
+//      _buildCorners(box).
+//   2. CSS opacity: layer awal opacity:0, hanya muncul jika container
+//      memiliki class scanner--palm-*. State "searching" sekarang juga
+//      di-apply saat scanner pertama aktif (sudah ada), dan state class
+//      di containerEl dipertahankan saat _setState() dipanggil.
+//   3. Landmark coordinates: landmarks dari backend sudah normalized
+//      (0-1), tinggal kali 100 untuk viewBox 0-100. Pastikan tidak
+//      double-normalize.
 // ============================================================
 
 export class PalmBoundingBox {
@@ -12,12 +24,16 @@ export class PalmBoundingBox {
     this.state = "idle";
 
     this._ensureLayer();
-    this.clear();
+    // BUG FIX: Jangan panggil clear() di constructor karena akan
+    // menghapus class dari containerEl sebelum scanner start.
+    // Layer SVG sudah kosong saat baru dibuat.
+    if (this.layerEl) {
+      this.layerEl.innerHTML = "";
+    }
   }
 
   _ensureLayer() {
     if (this.layerEl) return;
-
     if (!this.containerEl) return;
 
     this.layerEl = document.createElementNS(
@@ -39,7 +55,6 @@ export class PalmBoundingBox {
 
   setState(state) {
     this.state = state;
-
     if (!this.containerEl) return;
 
     this.containerEl.classList.remove(
@@ -57,7 +72,6 @@ export class PalmBoundingBox {
 
   clear() {
     if (!this.layerEl) return;
-
     this.lastBox = null;
     this.setState("idle");
     this.layerEl.innerHTML = "";
@@ -65,30 +79,24 @@ export class PalmBoundingBox {
 
   searching() {
     this.setState("searching");
-
     if (!this.layerEl) return;
 
     this.layerEl.innerHTML = `
       <g class="palm-box__searching">
         <rect class="palm-box__scanner-area" x="25" y="20" width="50" height="60" rx="2" />
-        <text class="palm-box__label" x="50" y="95" text-anchor="middle">
-          SEARCHING PALM
-        </text>
+        <text class="palm-box__label" x="50" y="95" text-anchor="middle">SEARCHING PALM</text>
       </g>
     `;
   }
 
   lost(reason = "NO PALM") {
     this.setState("lost");
-
     if (!this.layerEl) return;
 
     this.layerEl.innerHTML = `
       <g class="palm-box__lost">
         <rect class="palm-box__scanner-area" x="25" y="20" width="50" height="60" rx="2" />
-        <text class="palm-box__label" x="50" y="95" text-anchor="middle">
-          ${escapeSvgText(reason)}
-        </text>
+        <text class="palm-box__label" x="50" y="95" text-anchor="middle">${_escapeSvgText(reason)}</text>
       </g>
     `;
   }
@@ -97,6 +105,7 @@ export class PalmBoundingBox {
     bbox,
     landmarks = [],
     quality = null,
+    score = null,
     label = "PALM",
     state = "detected",
   } = {}) {
@@ -105,14 +114,26 @@ export class PalmBoundingBox {
       return;
     }
 
-    const box = normalizeBox(bbox);
+    const box = _normalizeBox(bbox);
+    
+    // FLIP THE X COORDINATES VISUALLY
+    // Because the video element is mirrored via CSS (`transform: scaleX(-1)`), 
+    // but the backend calculates coordinates on the raw, unmirrored image,
+    // we must horizontally flip the bounding box coordinates so they visually
+    // align with the mirrored video on screen.
+    box.x = 100 - box.x - box.width;
+
     this.lastBox = box;
 
     const qualityNumber = Number(quality);
     const hasQuality = Number.isFinite(qualityNumber);
     const qualityLabel = hasQuality
-      ? `${Math.round(qualityNumber * 100)}%`
+      ? `Q:${Math.round(qualityNumber * 100)}%`
       : "";
+
+    const scoreNumber = Number(score);
+    const hasScore = Number.isFinite(scoreNumber);
+    const scoreLabel = hasScore ? `S:${scoreNumber.toFixed(3)}` : "";
 
     const finalState =
       state === "matched"
@@ -121,29 +142,39 @@ export class PalmBoundingBox {
           ? "quality-low"
           : "detected";
 
-    const cornerMarkup = cornerMarkup(box);
+    const cornersHtml = _buildCorners(box);
 
-    const landmarkMarkup = landmarks
+    const landmarkDots = landmarks
       .map((point) => {
-        const x = clamp01(point.x) * 100;
-        const y = clamp01(point.y) * 100;
-        return `<circle class="palm-box__dot" cx="${x}" cy="${y}" r="0.8" />`;
+        // Flip landmark X visually as well
+        const x = 100 - (_clamp01(point.x) * 100);
+        const y = _clamp01(point.y) * 100;
+        return `<circle class="palm-box__dot" cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="0.6" />`;
       })
       .join("");
 
+    const displayLabel = `${_escapeSvgText(label)} ${qualityLabel} ${scoreLabel}`.trim();
+
     this.layerEl.innerHTML = `
       <g class="palm-box__group">
-        <rect class="palm-box__rect" x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="1" />
+        <rect class="palm-box__rect"
+          x="${box.x.toFixed(2)}" y="${box.y.toFixed(2)}"
+          width="${box.width.toFixed(2)}" height="${box.height.toFixed(2)}"
+          rx="1" />
 
-        ${cornerMarkup}
+        <rect class="palm-box__scanline"
+          x="${box.x.toFixed(2)}" y="${box.y.toFixed(2)}"
+          width="${box.width.toFixed(2)}" height="0.5"
+          rx="0.25" />
 
-        <text class="palm-box__label" x="${box.x + box.width / 2}" y="${box.y - 2}" text-anchor="middle">
-          ${escapeSvgText(label)} ${qualityLabel}
-        </text>
+        ${cornersHtml}
 
-        <g class="palm-box__landmarks">
-          ${landmarkMarkup}
+        <g class="palm-box__label-group" transform="translate(${(box.x + box.width / 2).toFixed(2)}, ${Math.max(4, box.y - 3).toFixed(2)})">
+           <rect class="palm-box__label-bg" x="-15" y="-3" width="30" height="4.5" rx="0.5" />
+           <text class="palm-box__label" text-anchor="middle" y="0.5">${displayLabel}</text>
         </g>
+
+        <g class="palm-box__landmarks">${landmarkDots}</g>
       </g>
     `;
 
@@ -151,59 +182,59 @@ export class PalmBoundingBox {
   }
 }
 
-function normalizeBox(bbox) {
-  // Support normalized box: {x:0.2,y:0.1,width:0.5,height:0.6}
-  // Support percent box:     {x:20,y:10,width:50,height:60}
+// ── Private module-level helpers (prefix _ agar tidak bentrok) ────────────
+
+function _normalizeBox(bbox) {
+  // Terima bbox normalized (0-1) atau persen (0-100)
+  // Deteksi: jika semua nilai <= 1.0, anggap normalized
   const isNormalized =
     bbox.x <= 1 && bbox.y <= 1 && bbox.width <= 1 && bbox.height <= 1;
 
-  const x = isNormalized ? bbox.x * 100 : bbox.x;
-  const y = isNormalized ? bbox.y * 100 : bbox.y;
-  const width = isNormalized ? bbox.width * 100 : bbox.width;
-  const height = isNormalized ? bbox.height * 100 : bbox.height;
-
-  return { x, y, width, height };
+  return {
+    x: isNormalized ? bbox.x * 100 : bbox.x,
+    y: isNormalized ? bbox.y * 100 : bbox.y,
+    width: isNormalized ? bbox.width * 100 : bbox.width,
+    height: isNormalized ? bbox.height * 100 : bbox.height,
+  };
 }
 
-function cornerMarkup(box) {
+// BUG FIX 1: Fungsi ini sebelumnya bernama "cornerMarkup" sama dengan
+// variabel yang menampung hasilnya di update(), menyebabkan ReferenceError.
+function _buildCorners(box) {
   const { x, y, width, height } = box;
-  const cornerSize = 4;
+  const s = 4; // corner size
 
   return `
     <g class="palm-box__corners">
-      <!-- Top-left -->
-      <line class="palm-box__corner" x1="${x}" y1="${y + cornerSize}" x2="${x}" y2="${y}" />
-      <line class="palm-box__corner" x1="${x}" y1="${y}" x2="${x + cornerSize}" y2="${y}" />
+      <line class="palm-box__corner" x1="${x}"       y1="${y + s}"      x2="${x}"       y2="${y}" />
+      <line class="palm-box__corner" x1="${x}"       y1="${y}"          x2="${x + s}"   y2="${y}" />
 
-      <!-- Top-right -->
-      <line class="palm-box__corner" x1="${x + width - cornerSize}" y1="${y}" x2="${x + width}" y2="${y}" />
-      <line class="palm-box__corner" x1="${x + width}" y1="${y}" x2="${x + width}" y2="${y + cornerSize}" />
+      <line class="palm-box__corner" x1="${x + width - s}" y1="${y}"    x2="${x + width}" y2="${y}" />
+      <line class="palm-box__corner" x1="${x + width}"     y1="${y}"    x2="${x + width}" y2="${y + s}" />
 
-      <!-- Bottom-left -->
-      <line class="palm-box__corner" x1="${x}" y1="${y + height - cornerSize}" x2="${x}" y2="${y + height}" />
-      <line class="palm-box__corner" x1="${x}" y1="${y + height}" x2="${x + cornerSize}" y2="${y + height}" />
+      <line class="palm-box__corner" x1="${x}"       y1="${y + height - s}" x2="${x}"       y2="${y + height}" />
+      <line class="palm-box__corner" x1="${x}"       y1="${y + height}"     x2="${x + s}"   y2="${y + height}" />
 
-      <!-- Bottom-right -->
-      <line class="palm-box__corner" x1="${x + width - cornerSize}" y1="${y + height}" x2="${x + width}" y2="${y + height}" />
-      <line class="palm-box__corner" x1="${x + width}" y1="${y + height - cornerSize}" x2="${x + width}" y2="${y + height}" />
+      <line class="palm-box__corner" x1="${x + width - s}" y1="${y + height}" x2="${x + width}" y2="${y + height}" />
+      <line class="palm-box__corner" x1="${x + width}"     y1="${y + height - s}" x2="${x + width}" y2="${y + height}" />
     </g>
   `;
 }
 
-function clamp01(value) {
+function _clamp01(value) {
   return Math.max(0, Math.min(1, value));
 }
 
-function escapeSvgText(value) {
+function _escapeSvgText(value) {
   return String(value ?? "").replace(
     /[&<>"']/g,
-    (char) =>
+    (c) =>
       ({
         "&": "&amp;",
         "<": "&lt;",
         ">": "&gt;",
         '"': "&quot;",
         "'": "&#039;",
-      })[char],
+      })[c],
   );
 }
