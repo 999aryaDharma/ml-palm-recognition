@@ -37,6 +37,38 @@ async function loadUsers() {
 }
 
 /** Render user cards to the grid */
+function escapeHtml(value) {
+  return String(value ?? "").replace(
+    /[&<>"']/g,
+    (char) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      })[char],
+  );
+}
+
+function splitFormattedDate(value) {
+  const formatted = formatDate(value);
+
+  if (!formatted || formatted === "—") {
+    return {
+      date: "—",
+      time: "—",
+    };
+  }
+
+  const parts = formatted.split("pukul");
+
+  return {
+    date: parts[0]?.trim() || formatted,
+    time: parts[1]?.trim() || "—",
+  };
+}
+
 function renderUsers(users) {
   if (users.length === 0) {
     grid.innerHTML = "";
@@ -49,37 +81,76 @@ function renderUsers(users) {
   grid.classList.remove("hidden");
 
   grid.innerHTML = users
-    .map(
-      (user) => `
-    <div class="user-card" data-id="${user.id}">
-      <div class="user-avatar">${getInitial(user.name)}</div>
-      <div class="user-info">
-        <div class="user-name">${user.name}</div>
-        <div class="user-meta">
-          <span>${user.template_count || 0} template</span> • 
-          <span>Terdaftar: ${formatDate(user.enrolled_at)}</span>
-        </div>
-      </div>
-      <div class="user-actions">
-        <a href="user-detail.html?id=${user.id}" class="btn btn--sm btn--secondary" title="Lihat Detail">
-           Detail
-        </a>
-        <button class="btn btn--sm btn--ghost btn-delete" data-id="${user.id}" data-name="${user.name}" title="Hapus Pengguna">
-           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-           </svg>
-        </button>
-      </div>
-    </div>
-  `,
-    )
+    .map((user) => {
+      const safeName = escapeHtml(user.name);
+      const templateCount = user.template_count || 0;
+      const dateInfo = splitFormattedDate(user.enrolled_at);
+      const compactDate = `${dateInfo.date} · ${dateInfo.time}`;
+
+      return `
+        <article class="user-card" data-id="${user.id}">
+          <div class="user-card__top">
+            <div class="user-card__avatar" aria-hidden="true">
+              ${getInitial(user.name)}
+            </div>
+
+            <div class="user-card__main">
+              <h3 class="user-card__name" title="${safeName}">
+                ${safeName}
+              </h3>
+              <span class="user-card__template">
+                ${templateCount} template
+              </span>
+            </div>
+          </div>
+
+          <div class="user-card__meta">
+            <span class="user-card__meta-label">Terdaftar</span>
+            <span class="user-card__meta-value" title="${escapeHtml(compactDate)}">
+              ${escapeHtml(compactDate)}
+            </span>
+          </div>
+
+          <div class="user-card__actions">
+            <a
+              href="user-detail.html?id=${encodeURIComponent(user.id)}"
+              class="btn btn--secondary btn--sm user-card__detail"
+              aria-label="Lihat detail pengguna ${safeName}"
+            >
+              Detail
+            </a>
+
+            <button
+              type="button"
+              class="btn-icon-danger btn-delete"
+              data-id="${user.id}"
+              aria-label="Hapus pengguna ${safeName}"
+              title="Hapus Pengguna"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 6h18" />
+                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                <path d="M10 11v6" />
+                <path d="M14 11v6" />
+              </svg>
+            </button>
+          </div>
+        </article>
+      `;
+    })
     .join("");
 
-  // Attach delete events
   grid.querySelectorAll(".btn-delete").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      const { id, name } = btn.dataset;
-      confirmDelete(id, name);
+    btn.addEventListener("click", () => {
+      const selectedUser = users.find(
+        (user) => String(user.id) === String(btn.dataset.id),
+      );
+
+      if (!selectedUser) return;
+      confirmDelete(selectedUser.id, selectedUser.name);
     });
   });
 }
@@ -102,7 +173,7 @@ function confirmDelete(id, name) {
   showModal({
     title: "Hapus Pengguna",
     message: `Apakah Anda yakin ingin menghapus <strong>${escapedName}</strong>? Seluruh data biometrik yang terkait akan dihapus secara permanen.`,
-    icon: "🗑️",
+    icon: "error", // Use SVG icon key (red alert circle)
     confirmLabel: "Hapus Pengguna",
     confirmVariant: "danger",
     onConfirm: async () => {

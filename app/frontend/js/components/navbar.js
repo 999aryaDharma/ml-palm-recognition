@@ -23,31 +23,30 @@ const NAV_ITEMS = [
 
 /**
  * Mount navbar into .app-navbar element.
- * Highlights the active link based on current pathname.
  */
 export function mountNavbar() {
   try {
     const el = document.querySelector(".app-navbar");
-    if (!el) {
-      console.warn("Navbar mount point (.app-navbar) not found.");
-      return;
-    }
+    if (!el) return;
 
+    // Detect project root relative to current path
+    // If we are in 'demo/payment.html', path depth is 1.
     const currentPath = window.location.pathname;
+    const isSubDir = currentPath.includes("/demo/");
+    const rootPrefix = isSubDir ? "../" : "";
 
     el.innerHTML = `
-      <a href="index.html" class="navbar-brand" aria-label="Palm Biometric Home">
+      <a href="${rootPrefix}index.html" class="navbar-brand" aria-label="PalmID Home">
         <div class="navbar-logo-mark" aria-hidden="true">
           ${svgPalmIcon()}
         </div>
         <div>
           <div class="navbar-brand-name">PalmID</div>
-          <div class="navbar-brand-sub">BIOMETRIC v0.5</div>
         </div>
       </a>
 
       <nav class="navbar-nav" aria-label="Main navigation">
-        ${NAV_ITEMS.map((item) => renderNavItem(item, currentPath)).join("")}
+        ${NAV_ITEMS.map((item) => renderNavItem(item, currentPath, rootPrefix)).join("")}
       </nav>
 
       <div class="backend-status backend-status--checking" id="backend-status" aria-live="polite">
@@ -56,22 +55,17 @@ export function mountNavbar() {
       </div>
     `;
 
-    // Initialize dropdown listeners if needed (optional since we use hover in CSS)
-    
-    // Start background polling
-    pollBackendStatus().catch(err => console.error("Initial health check failed:", err));
+    pollBackendStatus().catch(() => {});
   } catch (err) {
     console.error("mountNavbar failed:", err);
   }
 }
 
-function renderNavItem(item, currentPath) {
-  // Normalize paths for matching
+function renderNavItem(item, currentPath, rootPrefix) {
   const isMatch = (href) => {
     if (!href) return false;
-    // Relative match: ends with the href or just filename
+    // Simple path matching
     return currentPath.endsWith(href) || 
-           (currentPath === "/" && href === "index.html") ||
            (currentPath.endsWith("/") && href === "index.html");
   };
 
@@ -79,19 +73,27 @@ function renderNavItem(item, currentPath) {
     const isActive = item.children.some((c) => isMatch(c.href));
     return `
       <div class="nav-dropdown">
-        <button class="nav-link${isActive ? " active" : ""}" aria-haspopup="true" aria-expanded="${isActive}">
+        <button class="nav-link${isActive ? " active" : ""}" aria-haspopup="true">
           ${item.icon}
           <span>${item.label}</span>
+          <svg class="dropdown-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
         </button>
         <div class="nav-dropdown-menu" role="menu">
           ${item.children
-            .map(
-              (c) => `
-            <a href="${c.href}" class="nav-dropdown-item${isMatch(c.href) ? " active" : ""}" role="menuitem">
-              ${c.label}
-            </a>
-          `,
-            )
+            .map((c) => {
+              // If we're already in demo/ and the target is demo/X, 
+              // we need to adjust the link to just X.html
+              let finalHref = rootPrefix + c.href;
+              if (currentPath.includes("/demo/") && c.href.startsWith("demo/")) {
+                  finalHref = c.href.replace("demo/", "");
+              }
+              
+              return `
+                <a href="${finalHref}" class="nav-dropdown-item${isMatch(c.href) ? " active" : ""}" role="menuitem">
+                  <span>${c.label}</span>
+                </a>
+              `;
+            })
             .join("")}
         </div>
       </div>
@@ -100,7 +102,7 @@ function renderNavItem(item, currentPath) {
 
   const isActive = isMatch(item.href);
   return `
-    <a href="${item.href}" class="nav-link${isActive ? " active" : ""}" aria-current="${isActive ? "page" : "false"}">
+    <a href="${rootPrefix}${item.href}" class="nav-link${isActive ? " active" : ""}" aria-current="${isActive ? "page" : "false"}">
       ${item.icon}
       <span>${item.label}</span>
     </a>

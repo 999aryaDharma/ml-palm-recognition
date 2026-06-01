@@ -16,21 +16,38 @@ let terminal = null;
 let isProcessing = false;
 
 // ── DOM ────────────────────────────────────────────────────
-const scannerContainer = document.getElementById("scanner-container");
-const terminalBody = document.getElementById("terminal-body");
-const doorPanelInner = document.getElementById("door-panel-inner"); // inner div for animation class
-const doorStatus = document.getElementById("door-status");
-const doorIcon = document.getElementById("door-icon");
-const authorizedList = document.getElementById("authorized-list");
-const btnStartScan = document.getElementById("btn-start-scan");
-const accessLog = document.getElementById("access-log");
-const btnRefreshAuth = document.getElementById("btn-refresh-auth");
+let scannerContainer, terminalCard, doorPanelInner, doorStatus, doorIcon;
+let authorizedList, btnStartScan, accessLog, btnRefreshAuth;
 
 // ── Init ───────────────────────────────────────────────────
-function init() {
+async function init() {
   mountNavbar();
 
-  terminal = new DiagnosticTerminal(terminalBody);
+  // Retrieve elements inside init
+  scannerContainer = document.getElementById("scanner-container");
+  terminalCard = document.querySelector(".terminal-card");
+  doorPanelInner = document.getElementById("door-panel-inner");
+  doorStatus = document.getElementById("door-status");
+  doorIcon = document.getElementById("door-icon");
+  authorizedList = document.getElementById("authorized-list");
+  btnStartScan = document.getElementById("btn-start-scan");
+  accessLog = document.getElementById("access-log");
+  btnRefreshAuth = document.getElementById("btn-refresh-auth");
+
+  if (!btnStartScan || !terminalCard || !scannerContainer) {
+    console.error("[Access] Required DOM elements not found!");
+    return;
+  }
+
+  terminal = new DiagnosticTerminal(terminalCard);
+
+  // Listen for terminal events
+  document.addEventListener("toast", (e) => {
+    if (e.detail && toast[e.detail.type]) {
+      toast[e.detail.type](e.detail.message);
+    }
+  });
+
   terminal.addLog("SYSTEM", "Access control system initialized.");
   terminal.addLog("INSTRUCTION", "Langkah 1: Pilih pengguna yang diotorisasi.");
   terminal.addLog("INSTRUCTION", "Langkah 2: Klik 'Aktifkan Scanner Area'.");
@@ -41,10 +58,11 @@ function init() {
     hintEl: document.getElementById("scanner-hint"),
     resultEl: document.getElementById("scanner-result"),
     placeholderEl: document.getElementById("scanner-placeholder"),
-    logFn: (tag, msg) => terminal.addLog(tag, msg),
+    boundingBoxLayerEl: document.getElementById("palm-box-layer"),
+    logFn: (tag, msg) => terminal?.addLog(tag, msg),
     onIdentified: handleIdentified,
     onUnknown: (score) => {
-      terminal.addLog("RESULT", `UNKNOWN — score ${score.toFixed(4)}`);
+      terminal?.addLog("RESULT", `UNKNOWN — score ${score.toFixed(4)}`);
       triggerAccessDenied("Unknown", score, "unknown");
       enableStartButton();
     },
@@ -122,6 +140,9 @@ async function handleIdentified(user, score, latency) {
     }).catch(() => {});
 
     addAccessLogEntry(user.name, authorized, score);
+
+    // P0 UX: Pause scanner while door is open
+    scanner.pause();
   } catch (err) {
     terminal.addLog("ERROR", err.message || "Gagal memeriksa otorisasi");
     toast.error("Gagal memeriksa otorisasi.");

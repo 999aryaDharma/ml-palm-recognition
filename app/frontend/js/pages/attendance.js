@@ -1,6 +1,5 @@
 // ============================================================
 // js/pages/attendance.js — Palm Attendance demo logic
-// Fixed: result display in list, count tracking, proper scanner elements
 // ============================================================
 
 import { mountNavbar } from "../components/navbar.js";
@@ -15,28 +14,54 @@ let scanner = null;
 let terminal = null;
 let currentMode = "checkin"; // "checkin" | "checkout"
 let isProcessing = false;
+let scannerStarted = false;
 let countCheckin = 0;
 let countCheckout = 0;
 
 // ── DOM ────────────────────────────────────────────────────
-const scannerContainer = document.getElementById("scanner-container");
-const terminalBody = document.getElementById("terminal-body");
-const attendanceList = document.getElementById("attendance-list");
-const btnCheckin = document.getElementById("btn-mode-checkin");
-const btnCheckout = document.getElementById("btn-mode-checkout");
-const btnStartScan = document.getElementById("btn-start-scan");
-const modeLabelEl = document.getElementById("current-mode-label");
-const countCheckinEl = document.getElementById("count-checkin");
-const countCheckoutEl = document.getElementById("count-checkout");
+let btnCheckin, btnCheckout, btnStartScan, btnStopScan;
+let terminalCard, scannerContainer, attendanceList;
+let modeLabelEl, countCheckinEl, countCheckoutEl;
 
 // ── Init ───────────────────────────────────────────────────
-function init() {
+async function init() {
   mountNavbar();
 
-  terminal = new DiagnosticTerminal(terminalBody);
+  // Retrieve elements inside init
+  btnCheckin = document.getElementById("btn-mode-checkin");
+  btnCheckout = document.getElementById("btn-mode-checkout");
+  btnStartScan = document.getElementById("btn-start-scan");
+  btnStopScan = document.getElementById("btn-stop-scan");
+  terminalCard = document.querySelector(".terminal-card");
+  scannerContainer = document.getElementById("scanner-container");
+  attendanceList = document.getElementById("attendance-list");
+  modeLabelEl = document.getElementById("current-mode-label");
+  countCheckinEl = document.getElementById("count-checkin");
+  countCheckoutEl = document.getElementById("count-checkout");
+
+  if (!btnStartScan || !terminalCard || !scannerContainer) {
+    console.error("[Attendance] Required DOM elements not found!");
+    return;
+  }
+
+  terminal = new DiagnosticTerminal(terminalCard);
+
+  // Listen for terminal events (like copy log)
+  document.addEventListener("toast", (e) => {
+    if (e.detail && toast[e.detail.type]) {
+      toast[e.detail.type](e.detail.message);
+    }
+  });
+
   terminal.addLog("SYSTEM", "Attendance system initialized.");
-  terminal.addLog("INSTRUCTION", "Langkah 1: Pilih mode Check-in atau Check-out.");
+  terminal.addLog(
+    "INSTRUCTION",
+    "Langkah 1: Pilih mode Check-in atau Check-out.",
+  );
   terminal.addLog("INSTRUCTION", "Langkah 2: Klik 'Mulai Scan Absensi'.");
+
+  // Load from localStorage
+  loadAttendanceFromStorage();
 
   // Mode buttons
   btnCheckin?.addEventListener("click", () => setMode("checkin"));
@@ -49,18 +74,30 @@ function init() {
     hintEl: document.getElementById("scanner-hint"),
     resultEl: document.getElementById("scanner-result"),
     placeholderEl: document.getElementById("scanner-placeholder"),
-    logFn: (tag, msg) => terminal.addLog(tag, msg),
+    boundingBoxLayerEl: document.getElementById("palm-box-layer"),
+    logFn: (tag, msg) => terminal?.addLog(tag, msg),
     onIdentified: handleIdentified,
     onUnknown: (score) => {
-      toast.warning("Pengguna tidak dikenali. Coba scan ulang.");
-      terminal.addLog("RESULT", `UNKNOWN — score ${score.toFixed(4)}`);
-      enableStartButton();
+      terminal?.addLog(
+        "RESULT",
+        `ATTENDANCE UNKNOWN — score ${score.toFixed(4)}`,
+      );
     },
     autoResetMs: 4000,
     captureIntervalMs: 1500,
+    autoResumeOnIdentified: false,
+    pauseOnUnknown: true,
   });
 
   btnStartScan?.addEventListener("click", startScanner);
+
+  btnStopScan?.addEventListener("click", () => {
+    scanner?.stop();
+    scannerStarted = false;
+    if (btnStopScan) btnStopScan.hidden = true;
+    enableStartButton();
+    terminal.addLog("SYSTEM", "Attendance scanner stopped by user.");
+  });
 
   window.addEventListener("beforeunload", () => scanner?.stop());
   document.addEventListener("visibilitychange", () => {
@@ -68,11 +105,53 @@ function init() {
   });
 }
 
+function loadAttendanceFromStorage() {
+  const data = localStorage.getItem("palmid_attendance_logs");
+  if (!data) return;
+
+  try {
+    const logs = JSON.parse(data);
+    logs.forEach((entry) => {
+      addAttendanceEntryToDOM(entry.user, entry.mode, entry.time);
+      if (entry.mode === "checkin") countCheckin++;
+      else countCheckout++;
+    });
+    updateCounters();
+  } catch (err) {
+    console.error("Failed to load attendance logs:", err);
+  }
+}
+
+function saveAttendanceToStorage(user, mode, time) {
+  const data = localStorage.getItem("palmid_attendance_logs");
+  let logs = [];
+  if (data) {
+    try {
+      logs = JSON.parse(data);
+    } catch (e) {}
+  }
+  logs.unshift({ user, mode, time });
+  // Keep last 20
+  if (logs.length > 20) logs = logs.slice(0, 20);
+  localStorage.setItem("palmid_attendance_logs", JSON.stringify(logs));
+}
+
+function updateCounters() {
+  if (countCheckinEl) countCheckinEl.textContent = String(countCheckin);
+  if (countCheckoutEl) countCheckoutEl.textContent = String(countCheckout);
+}
+
 // ── Mode toggle ────────────────────────────────────────────
 function setMode(mode) {
   currentMode = mode;
+
+  // Accessibility: aria-pressed for semantic state
+  btnCheckin?.setAttribute("aria-pressed", String(mode === "checkin"));
+  btnCheckout?.setAttribute("aria-pressed", String(mode === "checkout"));
+
   if (modeLabelEl)
-    modeLabelEl.textContent = mode === "checkin" ? "Check-in" : "Check-out";
+    modeLabelEl.textContent =
+      mode === "checkin" ? "Check-in aktif" : "Check-out aktif";
 
   btnCheckin?.classList.toggle("btn--primary", mode === "checkin");
   btnCheckin?.classList.toggle("btn--secondary", mode !== "checkin");
@@ -84,33 +163,46 @@ function setMode(mode) {
 
 // ── Scanner ────────────────────────────────────────────────
 async function startScanner() {
+  if (scannerStarted) return;
+  scannerStarted = true;
+
   if (btnStartScan) {
     btnStartScan.disabled = true;
     btnStartScan.innerHTML = `<span class="spinner spinner--sm"></span> Scanning…`;
   }
   terminal.addLog("SYSTEM", `Attendance scanner (${currentMode}) started.`);
-  await scanner.start();
+
+  const ok = await scanner.start();
+  if (!ok) {
+    scannerStarted = false;
+    enableStartButton("Coba Aktifkan Scanner Lagi");
+    return;
+  }
+
+  if (btnStopScan) btnStopScan.hidden = false;
 }
 
-function enableStartButton() {
+function enableStartButton(label = "🖐 Mulai Scan Absensi") {
   if (btnStartScan) {
     btnStartScan.disabled = false;
-    btnStartScan.textContent = "🖐 Mulai Scan Absensi";
+    btnStartScan.textContent = label;
   }
 }
 
 // ── Identification callback ────────────────────────────────
 async function handleIdentified(user, score, latency) {
   if (isProcessing) return;
-  isProcessing = true;
 
   terminal.addLog(
     "MATCHING",
     `${user.name} — score ${score.toFixed(4)} — ${latency}ms`,
   );
 
+  // P0 UX FIX: Explicitly pause scanner during modal
+  scanner.pause();
+
   const modeText = currentMode === "checkin" ? "Check-in" : "Check-out";
-  const modeIcon = currentMode === "checkin" ? "📋" : "🚪";
+  const modeIcon = currentMode === "checkin" ? "clipboard" : "doorOpen";
 
   showModal({
     title: `Konfirmasi ${modeText}`,
@@ -118,7 +210,7 @@ async function handleIdentified(user, score, latency) {
     message: `
       <div class="flex flex-col gap-4">
         <p>Catat <strong>${modeText}</strong> untuk:</p>
-        <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--color-surface-warm);border-radius:12px;border:1px solid var(--color-border)">
+        <div class="attendance-user-summary" style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--color-surface-warm);border-radius:12px;border:1px solid var(--color-border)">
           <div style="width:40px;height:40px;border-radius:8px;background:var(--color-coffee);display:flex;align-items:center;justify-content:center;color:white;font-weight:700">
             ${escHtml(user.name[0])}
           </div>
@@ -143,6 +235,7 @@ async function handleIdentified(user, score, latency) {
 
 // ── Submit to backend ──────────────────────────────────────
 async function submitAttendance(user, score) {
+  isProcessing = true;
   try {
     const result = await apiFetch("/demos/attendance/checkin", {
       method: "POST",
@@ -152,6 +245,10 @@ async function submitAttendance(user, score) {
         match_score: score,
       }),
     });
+
+    const timeStr = result?.timestamp
+      ? new Date(result.timestamp).toLocaleTimeString("id-ID")
+      : new Date().toLocaleTimeString("id-ID");
 
     terminal.addLog(
       "RESULT",
@@ -165,13 +262,13 @@ async function submitAttendance(user, score) {
     // Update counters
     if (currentMode === "checkin") {
       countCheckin++;
-      if (countCheckinEl) countCheckinEl.textContent = String(countCheckin);
     } else {
       countCheckout++;
-      if (countCheckoutEl) countCheckoutEl.textContent = String(countCheckout);
     }
+    updateCounters();
 
-    addAttendanceEntry(user, result);
+    addAttendanceEntryToDOM(user, currentMode, timeStr);
+    saveAttendanceToStorage(user, currentMode, timeStr);
   } catch (err) {
     terminal.addLog("ERROR", err.message || "Gagal mencatat absensi");
     toast.error("Gagal mencatat kehadiran. Coba lagi.");
@@ -183,22 +280,18 @@ async function submitAttendance(user, score) {
 }
 
 // ── Render attendance entry in list ───────────────────────
-function addAttendanceEntry(user, result) {
+function addAttendanceEntryToDOM(user, mode, time) {
   if (!attendanceList) return;
 
   // Remove empty-state placeholder on first real entry
   const placeholder = document.getElementById("attendance-empty");
   if (placeholder) placeholder.remove();
 
-  const time = result?.timestamp
-    ? new Date(result.timestamp).toLocaleTimeString("id-ID")
-    : new Date().toLocaleTimeString("id-ID");
-
   const entry = document.createElement("div");
   entry.className = "attendance-entry";
   entry.innerHTML = `
-    <span class="attendance-mode attendance-mode--${currentMode}">
-      ${currentMode === "checkin" ? "IN" : "OUT"}
+    <span class="attendance-mode attendance-mode--${mode}">
+      ${mode === "checkin" ? "IN" : "OUT"}
     </span>
     <span class="attendance-name">${escHtml(user.name)}</span>
     <span class="attendance-time">${time}</span>

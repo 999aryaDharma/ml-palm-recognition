@@ -15,42 +15,10 @@
     <link rel="stylesheet" href="../css/base.css" />
     <link rel="stylesheet" href="../css/layout.css" />
     <link rel="stylesheet" href="../css/components.css" />
+    <link rel="stylesheet" href="../css/pages/demo.css" />
 
     <style>
-      .receipt-card {
-        background: var(--color-surface-warm);
-        border: 2px dashed var(--color-border);
-        border-radius: var(--radius-lg);
-        padding: var(--space-8);
-        max-width: 480px;
-        margin: 0 auto;
-        position: relative;
-        animation: receipt-in 0.6s var(--ease-out);
-      }
-      @keyframes receipt-in {
-        from {
-          opacity: 0;
-          transform: translateY(32px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-      .receipt-row {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: var(--space-2);
-        font-size: var(--text-sm);
-      }
-      .receipt-footer {
-        text-align: center;
-        margin-top: var(--space-8);
-        padding-top: var(--space-4);
-        border-top: 1px solid var(--color-border);
-        color: var(--color-coffee-light);
-        font-size: var(--text-xs);
-      }
+      /* Receipt styles are now mostly in demo.css, but we keep some overrides if needed */
       .status-success-icon {
         width: 64px;
         height: 64px;
@@ -112,26 +80,17 @@
               RINGKASAN PESANAN
             </h4>
             <div style="margin-bottom: var(--space-6)">
-              <div class="receipt-row">
-                <span>Espresso Roast (250g)</span>
-                <span class="text-mono">Rp 85.000</span>
+              <div class="cart-item">
+                <span class="cart-item-name">Espresso Roast (250g)</span>
+                <span class="cart-item-price">Rp 85.000</span>
               </div>
-              <div class="receipt-row">
-                <span>Paper Filter v60 (100pcs)</span>
-                <span class="text-mono">Rp 42.500</span>
+              <div class="cart-item">
+                <span class="cart-item-name">Paper Filter v60 (100pcs)</span>
+                <span class="cart-item-price">Rp 42.500</span>
               </div>
-              <div
-                class="receipt-row"
-                style="
-                  margin-top: var(--space-4);
-                  padding-top: var(--space-4);
-                  border-top: 1px solid var(--color-border);
-                  font-weight: 600;
-                  font-size: var(--text-body);
-                "
-              >
+              <div class="cart-total">
                 <span>Total Tagihan</span>
-                <span class="text-mono">Rp 127.500</span>
+                <span class="cart-total-amount">Rp 127.500</span>
               </div>
             </div>
 
@@ -145,19 +104,43 @@
               </p>
             </div>
 
-            <button
-              id="btn-start-payment"
-              class="btn btn--primary btn--full btn--lg"
-            >
-              💳 Bayar dengan Telapak
-            </button>
+            <div class="flex flex-col gap-3">
+              <button
+                id="btn-start-payment"
+                class="btn btn--primary btn--full btn--lg"
+              >
+                💳 Bayar dengan Telapak
+              </button>
+              <button
+                id="btn-stop-payment"
+                class="btn btn--secondary btn--full"
+                hidden
+              >
+                Berhenti Scan
+              </button>
+            </div>
           </section>
 
           <!-- Scanner Panel -->
           <section class="flex flex-col gap-6">
-            <!-- Scanner Container — semua child element WAJIB ada -->
+            <!-- Scanner Container -->
             <div class="scanner" id="scanner-container">
-              <video id="scanner-video" autoplay muted playsinline></video>
+              <video
+                id="scanner-video"
+                autoplay
+                muted
+                playsinline
+                aria-label="Preview kamera untuk pemindaian pembayaran dengan telapak tangan"
+              ></video>
+
+              <!-- Palm bounding box overlay -->
+              <svg
+                id="palm-box-layer"
+                class="palm-box-layer"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              ></svg>
 
               <!-- Target bracket -->
               <div class="scanner__target">
@@ -190,7 +173,12 @@
               </div>
 
               <div class="scanner__scanline"></div>
-              <div class="scanner__hint" id="scanner-hint">
+              <div
+                class="scanner__hint"
+                id="scanner-hint"
+                role="status"
+                aria-live="polite"
+              >
                 Klik tombol untuk mengaktifkan pemindai
               </div>
 
@@ -200,7 +188,7 @@
 
               <div class="scanner__result" id="scanner-result"></div>
 
-              <!-- Placeholder — HARUS display:flex agar _showPlaceholder(false) bisa set display:none -->
+              <!-- Placeholder -->
               <div
                 class="scanner__placeholder"
                 id="scanner-placeholder"
@@ -221,7 +209,13 @@
                 </div>
                 <span class="terminal__title">DIAGNOSTIC_LOG</span>
               </div>
-              <div class="terminal__body" id="terminal-body">
+              <div
+                class="terminal__body"
+                id="terminal-body"
+                role="log"
+                aria-live="polite"
+                aria-relevant="additions"
+              >
                 <div class="log-line">
                   <span class="log-time">--:--:--.---</span>
                   <span class="log-tag log-tag--camera"
@@ -248,7 +242,7 @@
                 border-bottom: 1px solid var(--color-border);
               "
             >
-              <h2 style="font-size: var(--text-h3)">Pembayaran Berhasil</h2>
+              <h2 class="receipt-title">Pembayaran Berhasil</h2>
               <p class="text-sm">
                 Terima kasih telah berbelanja di Toko Maju Jaya
               </p>
@@ -256,7 +250,9 @@
             <div>
               <div class="receipt-row">
                 <span class="text-muted">ID Transaksi</span>
-                <span id="receipt-txn-id" class="text-mono">TXN-XXXX-XXXX</span>
+                <span id="receipt-txn-id" class="receipt-txn"
+                  >TXN-XXXX-XXXX</span
+                >
               </div>
               <div class="receipt-row">
                 <span class="text-muted">Waktu</span>
@@ -270,6 +266,10 @@
                 <span class="text-muted">Pelanggan</span>
                 <span id="receipt-user">—</span>
               </div>
+              <div class="receipt-row">
+                <span class="text-muted">Match Score</span>
+                <span id="receipt-score" class="text-mono">—</span>
+              </div>
               <hr
                 style="
                   border: 0;
@@ -277,12 +277,9 @@
                   margin: var(--space-4) 0;
                 "
               />
-              <div
-                class="receipt-row"
-                style="font-weight: 600; font-size: var(--text-body)"
-              >
+              <div class="cart-total">
                 <span>Total Pembayaran</span>
-                <span id="receipt-amount" class="text-mono">Rp 0</span>
+                <span id="receipt-amount" class="cart-total-amount">Rp 0</span>
               </div>
             </div>
             <div class="receipt-footer">

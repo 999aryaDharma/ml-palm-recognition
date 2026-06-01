@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="../css/base.css" />
     <link rel="stylesheet" href="../css/layout.css" />
     <link rel="stylesheet" href="../css/components.css" />
+    <link rel="stylesheet" href="../css/pages/demo.css" />
   </head>
 
   <body class="app-body">
@@ -44,12 +45,12 @@
               <div class="badge badge--online">Hari Ini</div>
             </div>
 
-            <div
-              id="attendance-list"
-              class="flex flex-col gap-3"
-              style="flex: 1"
-            >
-              <div id="attendance-empty" class="empty-state" style="padding: var(--space-8) 0">
+            <div id="attendance-list" class="attendance-log" style="flex: 1">
+              <div
+                id="attendance-empty"
+                class="empty-state"
+                style="padding: var(--space-8) 0"
+              >
                 <p class="text-xs">Belum ada aktivitas absensi hari ini.</p>
               </div>
             </div>
@@ -58,23 +59,70 @@
           <!-- Scanner Panel -->
           <section id="scanner-panel" class="flex flex-col gap-6">
             <div class="scanner" id="scanner-container">
-              <video id="scanner-video" autoplay muted playsinline></video>
-              
+              <video
+                id="scanner-video"
+                autoplay
+                muted
+                playsinline
+                aria-label="Preview kamera untuk pemindaian absensi dengan telapak tangan"
+              ></video>
+
+              <!-- Palm bounding box overlay -->
+              <svg
+                id="palm-box-layer"
+                class="palm-box-layer"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              ></svg>
+
               <div class="scanner__target">
                 <svg viewBox="0 0 220 220" fill="none">
-                  <path d="M40 2H22C10.9543 2 2 10.9543 2 22V40" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-                  <path d="M180 2H198C209.046 2 218 10.9543 218 22V40" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-                  <path d="M40 218H22C10.9543 218 2 209.046 2 198V180" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-                  <path d="M180 218H198C209.046 218 218 209.046 218 198V180" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                  <path
+                    d="M40 2H22C10.9543 2 2 10.9543 2 22V40"
+                    stroke="currentColor"
+                    stroke-width="4"
+                    stroke-linecap="round"
+                  />
+                  <path
+                    d="M180 2H198C209.046 2 218 10.9543 218 22V40"
+                    stroke="currentColor"
+                    stroke-width="4"
+                    stroke-linecap="round"
+                  />
+                  <path
+                    d="M40 218H22C10.9543 218 2 209.046 2 198V180"
+                    stroke="currentColor"
+                    stroke-width="4"
+                    stroke-linecap="round"
+                  />
+                  <path
+                    d="M180 218H198C209.046 218 218 209.046 218 198V180"
+                    stroke="currentColor"
+                    stroke-width="4"
+                    stroke-linecap="round"
+                  />
                 </svg>
               </div>
-              
+
               <div class="scanner__scanline"></div>
-              <div class="scanner__hint" id="scanner-hint">Pilih mode absensi</div>
-              
+              <div
+                class="scanner__hint"
+                id="scanner-hint"
+                role="status"
+                aria-live="polite"
+              >
+                Pilih mode absensi
+              </div>
+
               <div class="scanner__processing">
                 <div class="spinner"></div>
-                <div class="scanner__processing-label" id="scanner-loading-label">Mengidentifikasi...</div>
+                <div
+                  class="scanner__processing-label"
+                  id="scanner-loading-label"
+                >
+                  Mengidentifikasi...
+                </div>
               </div>
 
               <div class="scanner__result" id="scanner-result"></div>
@@ -86,20 +134,77 @@
             </div>
 
             <div class="surface-card">
-               <h4 class="eyebrow" style="margin-bottom: var(--space-4)">KONTROL ABSENSI</h4>
-               <div class="flex flex-col gap-4">
-                  <div class="two-col">
-                    <button class="btn btn--secondary btn--full" id="btn-mode-checkin">Check-in</button>
-                    <button class="btn btn--ghost btn--full" id="btn-mode-checkout">Check-out</button>
-                  </div>
-                  <div class="status-row">
-                    <span class="status-row-label">Mode Saat Ini:</span>
-                    <span class="status-row-value" id="current-mode-label">Check-in</span>
-                  </div>
-                  <button class="btn btn--primary btn--full btn--lg" id="btn-start-scan">
-                    Mulai Scan Telapak
+              <h4 class="eyebrow" style="margin-bottom: var(--space-4)">
+                KONTROL ABSENSI
+              </h4>
+              <div class="flex flex-col gap-4">
+                <div
+                  class="two-col"
+                  role="group"
+                  aria-label="Pilih mode absensi"
+                >
+                  <button
+                    class="btn btn--secondary btn--full"
+                    id="btn-mode-checkin"
+                    aria-pressed="true"
+                  >
+                    Check-in
                   </button>
-               </div>
+                  <button
+                    class="btn btn--ghost btn--full"
+                    id="btn-mode-checkout"
+                    aria-pressed="false"
+                  >
+                    Check-out
+                  </button>
+                </div>
+                <div class="status-row">
+                  <span class="status-row-label">Mode Saat Ini:</span>
+                  <span class="status-row-value" id="current-mode-label"
+                    >Check-in</span
+                  >
+                </div>
+                <div class="flex flex-col gap-3">
+                  <button
+                    class="btn btn--primary btn--full btn--lg"
+                    id="btn-start-scan"
+                  >
+                    🖐 Mulai Scan Absensi
+                  </button>
+                  <button
+                    class="btn btn--secondary btn--full"
+                    id="btn-stop-scan"
+                    hidden
+                  >
+                    Berhenti Scan
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Diagnostic Terminal -->
+            <div class="terminal-card">
+              <div class="terminal__header">
+                <div class="terminal__dots" aria-hidden="true">
+                  <div class="terminal__dot"></div>
+                  <div class="terminal__dot"></div>
+                  <div class="terminal__dot"></div>
+                </div>
+                <span class="terminal__title">DIAGNOSTIC_LOG</span>
+              </div>
+              <div
+                class="terminal__body"
+                id="terminal-body"
+                role="log"
+                aria-live="polite"
+                aria-relevant="additions"
+              >
+                <div class="log-line">
+                  <span class="log-time">--:--:--.---</span>
+                  <span class="log-tag log-tag--camera">SYSTEM</span>
+                  <span class="log-msg">Attendance module ready.</span>
+                </div>
+              </div>
             </div>
           </section>
         </div>

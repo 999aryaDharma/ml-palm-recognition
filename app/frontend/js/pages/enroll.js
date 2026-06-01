@@ -49,28 +49,30 @@ let isCapturing = false;
 let isUserCreated = false; // guard: true setelah createUser() berhasil
 
 // ── DOM Elements ───────────────────────────────────────────
-const steps = {
-  name: document.getElementById("step-name"),
-  capture: document.getElementById("step-capture"),
-  verifying: document.getElementById("step-verifying"),
-  success: document.getElementById("step-success"),
-};
-
-const inputName = document.getElementById("input-name");
-const btnToCapture = document.getElementById("btn-to-capture");
-const btnCancelCapture = document.getElementById("btn-cancel-capture");
-
-const videoEl = document.getElementById("enroll-video");
-const scannerHint = document.getElementById("scanner-hint");
-const scannerLoading = document.getElementById("scanner-loading");
-const scanline = document.getElementById("scanline");
-const sampleBadge = document.getElementById("sample-count-badge");
-const sampleDots = document.querySelectorAll(".step-dot");
-const successName = document.getElementById("success-name");
+let inputName, btnToCapture, btnCancelCapture;
+let videoEl, scannerHint, scannerLoading, scanline;
+let sampleBadge, sampleDots, successName;
 
 // ── Init ───────────────────────────────────────────────────
-function init() {
+async function init() {
   mountNavbar();
+
+  // Retrieve elements inside init
+  inputName = document.getElementById("input-name");
+  btnToCapture = document.getElementById("btn-to-capture");
+  btnCancelCapture = document.getElementById("btn-cancel-capture");
+  videoEl = document.getElementById("enroll-video");
+  scannerHint = document.getElementById("scanner-hint");
+  scannerLoading = document.getElementById("scanner-loading");
+  scanline = document.getElementById("scanline");
+  sampleBadge = document.getElementById("sample-count-badge");
+  sampleDots = document.querySelectorAll(".step-dot");
+  successName = document.getElementById("success-name");
+
+  if (!inputName || !btnToCapture) {
+    console.error("[Enroll] Essential DOM elements not found!");
+    return;
+  }
 
   // Fix: Handle form submission to prevent page reload
   const formName = document.getElementById("form-name");
@@ -81,7 +83,7 @@ function init() {
     });
   }
 
-  btnCancelCapture.addEventListener("click", cancelEnrollment);
+  btnCancelCapture?.addEventListener("click", cancelEnrollment);
 
   inputName.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {

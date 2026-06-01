@@ -53,6 +53,13 @@
               />
               <p class="form-hint">Gunakan nama asli untuk akurasi data.</p>
             </div>
+            
+            <div class="hint-box hint-box--info" style="margin: var(--space-6) 0">
+              <p class="text-xs">
+                <strong>Catatan Privasi:</strong> Data telapak tangan Anda akan diubah menjadi representasi matematika (template) dan tidak disimpan dalam bentuk gambar asli.
+              </p>
+            </div>
+
             <button
               type="submit"
               id="btn-to-capture"
@@ -81,7 +88,13 @@
           <div class="scanner-layout">
             <!-- Scanner Component -->
             <div class="scanner" id="scanner-container">
-              <video id="enroll-video" autoplay muted playsinline></video>
+              <video
+                id="enroll-video"
+                autoplay
+                muted
+                playsinline
+                aria-label="Preview kamera untuk pendaftaran telapak tangan"
+              ></video>
 
               <!-- Target Bracket -->
               <div class="scanner__target" id="scanner-target">
@@ -117,7 +130,12 @@
               <div class="scanner__scanline hidden" id="scanline"></div>
 
               <!-- Hint Overlay -->
-              <div class="scanner__hint" id="scanner-hint" aria-live="polite">
+              <div
+                class="scanner__hint"
+                id="scanner-hint"
+                role="status"
+                aria-live="polite"
+              >
                 Menghidupkan kamera...
               </div>
 
@@ -193,7 +211,7 @@
               class="status-icon status-icon--success"
               style="margin: 0 auto var(--space-6)"
             >
-              ✅
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
             </div>
             <h1 style="margin-bottom: var(--space-2)">Enrollment Berhasil!</h1>
             <p class="text-body-lg" style="margin-bottom: var(--space-8)">

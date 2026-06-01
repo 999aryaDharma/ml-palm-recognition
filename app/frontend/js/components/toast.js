@@ -2,6 +2,8 @@
 // js/components/toast.js — Toast notification system
 // ============================================================
 
+import { ICONS as SVG_ICONS } from "../icons.js";
+
 const MAX_TOASTS = 3;
 let container = null;
 
@@ -17,11 +19,11 @@ function getContainer() {
   return container;
 }
 
-const ICONS = {
-  success: "✅",
-  error: "❌",
-  warning: "⚠️",
-  info: "ℹ️",
+const ICON_MAP = {
+  success: SVG_ICONS.checkCircle(20),
+  error: SVG_ICONS.alertCircle(20),
+  warning: SVG_ICONS.alertTriangle(20),
+  info: SVG_ICONS.info(20),
 };
 
 /**
@@ -55,11 +57,12 @@ export function showToast(message, type = "info", duration = 3500, title = "") {
     }[type];
 
   toast.innerHTML = `
-    <span class="toast-icon">${ICONS[type]}</span>
+    <span class="toast-icon" aria-hidden="true">${ICON_MAP[type]}</span>
     <div class="toast-body">
       <div class="toast-title">${displayTitle}</div>
       <div class="toast-msg">${message}</div>
     </div>
+    <button class="toast-close" aria-label="Tutup notifikasi">&times;</button>
   `;
 
   c.appendChild(toast);
@@ -72,7 +75,14 @@ export function showToast(message, type = "info", duration = 3500, title = "") {
   // Auto remove
   const timer = setTimeout(() => removeToast(toast), duration);
 
-  // Click to dismiss
+  // Close button action
+  toast.querySelector(".toast-close")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    clearTimeout(timer);
+    removeToast(toast);
+  });
+
+  // Click anywhere to dismiss (optional, kept for convenience)
   toast.addEventListener("click", () => {
     clearTimeout(timer);
     removeToast(toast);

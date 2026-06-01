@@ -2,17 +2,32 @@
 // js/components/modal.js — Reusable confirm modal
 // ============================================================
 
+import { ICONS } from "../icons.js";
+
 let activeModal = null;
+let lastFocusedElement = null;
+
+const ICON_MAP = {
+  success: ICONS.checkCircle(40),
+  error: ICONS.alertCircle(40),
+  warning: ICONS.alertTriangle(40),
+  info: ICONS.info(40),
+  creditCard: ICONS.creditCard(),
+  clipboard: ICONS.clipboard(),
+  doorOpen: ICONS.doorOpen(),
+  hospital: ICONS.hospital(),
+};
 
 /**
  * Show a confirmation modal.
  * @param {object} opts
  * @param {string} opts.title
  * @param {string} opts.message   — can include HTML
- * @param {string} [opts.icon]    — emoji or text
+ * @param {string} [opts.icon]    — key from ICON_MAP
  * @param {string} [opts.confirmLabel]  default "Konfirmasi"
  * @param {string} [opts.cancelLabel]   default "Batal"
  * @param {string} [opts.confirmVariant] btn variant: 'primary'|'danger'|'success'
+ * @param {'confirm'|'cancel'} [opts.initialFocus] which button to focus first
  * @param {Function} opts.onConfirm
  * @param {Function} [opts.onCancel]
  */
@@ -23,9 +38,13 @@ export function showModal({
   confirmLabel = "Konfirmasi",
   cancelLabel = "Batal",
   confirmVariant = "primary",
+  initialFocus,
   onConfirm,
   onCancel,
 }) {
+  // Save last focused element for restoration
+  lastFocusedElement = document.activeElement;
+
   // Remove previous modal
   closeModal();
 
@@ -34,12 +53,17 @@ export function showModal({
   backdrop.setAttribute("role", "dialog");
   backdrop.setAttribute("aria-modal", "true");
   backdrop.setAttribute("aria-labelledby", "modal-title");
+  backdrop.setAttribute("aria-describedby", "modal-desc");
+
+  const iconHtml = ICON_MAP[icon] 
+    ? `<div class="modal-icon" aria-hidden="true">${ICON_MAP[icon]}</div>` 
+    : "";
 
   backdrop.innerHTML = `
     <div class="modal">
-      ${icon ? `<div class="modal-icon">${icon}</div>` : ""}
+      ${iconHtml}
       <h3 class="modal-title" id="modal-title">${title}</h3>
-      <div class="modal-body">${message}</div>
+      <div class="modal-body" id="modal-desc">${message}</div>
       <div class="modal-actions">
         <button class="btn btn--ghost" id="modal-cancel">${cancelLabel}</button>
         <button class="btn btn--${confirmVariant}" id="modal-confirm">${confirmLabel}</button>
@@ -55,14 +79,21 @@ export function showModal({
     requestAnimationFrame(() => backdrop.classList.add("is-open"));
   });
 
-  // Focus cancel by default for destructive actions
   const cancelBtn = backdrop.querySelector("#modal-cancel");
   const confirmBtn = backdrop.querySelector("#modal-confirm");
 
-  if (confirmVariant === "danger") {
+  // Initial focus logic
+  if (initialFocus === "cancel") {
     cancelBtn.focus();
-  } else {
+  } else if (initialFocus === "confirm") {
     confirmBtn.focus();
+  } else {
+    // Default legacy logic
+    if (confirmVariant === "danger") {
+      cancelBtn.focus();
+    } else {
+      confirmBtn.focus();
+    }
   }
 
   // Trap focus inside modal
@@ -102,7 +133,17 @@ export function closeModal() {
   if (!activeModal) return;
   activeModal.classList.remove("is-open");
   const m = activeModal;
-  m.addEventListener("transitionend", () => m.remove(), { once: true });
+  m.addEventListener(
+    "transitionend",
+    () => {
+      m.remove();
+      // Restore focus
+      if (lastFocusedElement && typeof lastFocusedElement.focus === "function") {
+        lastFocusedElement.focus();
+      }
+    },
+    { once: true },
+  );
   activeModal = null;
 }
 

@@ -38,43 +38,98 @@
           <section
             id="patient-panel"
             class="surface-card flex flex-col"
-            style="min-height: 400px;"
+            style="min-height: 400px"
           >
-             <div id="patient-empty" class="flex flex-col items-center justify-center flex-1 text-center p-8">
-                <div style="font-size: 3rem; opacity: 0.2; margin-bottom: var(--space-4);">🏥</div>
-                <p class="text-muted">Pindai telapak tangan pasien untuk melihat data rekam medis.</p>
-             </div>
-            <div id="patient-data" class="hidden w-full h-full flex flex-col gap-6">
-                <!-- Patient Info will be injected here -->
-             </div>
+            <div
+              id="patient-empty"
+              class="flex flex-col items-center justify-center flex-1 text-center p-8"
+            >
+              <div
+                style="
+                  font-size: 3rem;
+                  opacity: 0.2;
+                  margin-bottom: var(--space-4);
+                "
+              >
+                🏥
+              </div>
+              <p class="text-muted">
+                Pindai telapak tangan pasien untuk melihat data rekam medis.
+              </p>
+            </div>
+            <div
+              id="patient-data"
+              class="hidden w-full h-full flex flex-col gap-6"
+            >
+              <!-- Patient Info will be injected here -->
+            </div>
 
-             <div style="margin-top: auto; padding-top: var(--space-6);">
-                <button id="btn-confirm-checkin" class="btn btn--success btn--full btn--lg hidden">
-                  ✅ Konfirmasi Check-in Pasien
-                </button>
-             </div>
+            <div style="margin-top: auto; padding-top: var(--space-6)">
+              <button
+                id="btn-confirm-checkin"
+                class="btn btn--success btn--full btn--lg hidden"
+              >
+                ✅ Konfirmasi Check-in Pasien
+              </button>
+            </div>
           </section>
 
           <!-- Scanner Panel -->
           <section id="scanner-panel" class="flex flex-col gap-6">
             <div class="scanner" id="scanner-container">
               <video id="scanner-video" autoplay muted playsinline></video>
-              
+
+              <!-- Palm bounding box overlay -->
+              <svg
+                id="palm-box-layer"
+                class="palm-box-layer"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              ></svg>
+
               <div class="scanner__target">
                 <svg viewBox="0 0 220 220" fill="none">
-                  <path d="M40 2H22C10.9543 2 2 10.9543 2 22V40" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-                  <path d="M180 2H198C209.046 2 218 10.9543 218 22V40" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-                  <path d="M40 218H22C10.9543 218 2 209.046 2 198V180" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-                  <path d="M180 218H198C209.046 218 218 209.046 218 198V180" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                  <path
+                    d="M40 2H22C10.9543 2 2 10.9543 2 22V40"
+                    stroke="currentColor"
+                    stroke-width="4"
+                    stroke-linecap="round"
+                  />
+                  <path
+                    d="M180 2H198C209.046 2 218 10.9543 218 22V40"
+                    stroke="currentColor"
+                    stroke-width="4"
+                    stroke-linecap="round"
+                  />
+                  <path
+                    d="M40 218H22C10.9543 218 2 209.046 2 198V180"
+                    stroke="currentColor"
+                    stroke-width="4"
+                    stroke-linecap="round"
+                  />
+                  <path
+                    d="M180 218H198C209.046 218 218 209.046 218 198V180"
+                    stroke="currentColor"
+                    stroke-width="4"
+                    stroke-linecap="round"
+                  />
                 </svg>
               </div>
-              
+
               <div class="scanner__scanline"></div>
-              <div class="scanner__hint" id="scanner-hint">Arahkan telapak pasien...</div>
-              
+              <div class="scanner__hint" id="scanner-hint">
+                Arahkan telapak pasien...
+              </div>
+
               <div class="scanner__processing">
                 <div class="spinner"></div>
-                <div class="scanner__processing-label" id="scanner-loading-label">Mencari Data Pasien...</div>
+                <div
+                  class="scanner__processing-label"
+                  id="scanner-loading-label"
+                >
+                  Mencari Data Pasien...
+                </div>
               </div>
 
               <div class="scanner__result" id="scanner-result"></div>
@@ -86,9 +141,12 @@
             </div>
 
             <div class="surface-card">
-               <button class="btn btn--primary btn--full btn--lg" id="btn-start-scan">
-                 Aktifkan Scanner Pasien
-               </button>
+              <button
+                class="btn btn--primary btn--full btn--lg"
+                id="btn-start-scan"
+              >
+                Aktifkan Scanner Pasien
+              </button>
             </div>
           </section>
         </div>

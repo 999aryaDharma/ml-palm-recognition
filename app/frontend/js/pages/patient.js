@@ -18,20 +18,43 @@ let pendingUser = null;
 let pendingPatient = null;
 
 // ── DOM ────────────────────────────────────────────────────
-const scannerContainer = document.getElementById("scanner-container");
-const terminalBody = document.getElementById("terminal-body");
-const patientPanel = document.getElementById("patient-panel");
-const btnStartScan = document.getElementById("btn-start-scan");
-const btnConfirmCheckin = document.getElementById("btn-confirm-checkin");
+let scannerContainer,
+  terminalCard,
+  patientPanel,
+  btnStartScan,
+  btnConfirmCheckin;
 
 // ── Init ───────────────────────────────────────────────────
-function init() {
+async function init() {
   mountNavbar();
 
-  terminal = new DiagnosticTerminal(terminalBody);
+  // Retrieve elements inside init
+  scannerContainer = document.getElementById("scanner-container");
+  terminalCard = document.querySelector(".terminal-card");
+  patientPanel = document.getElementById("patient-panel");
+  btnStartScan = document.getElementById("btn-start-scan");
+  btnConfirmCheckin = document.getElementById("btn-confirm-checkin");
+
+  if (!btnStartScan || !terminalCard || !scannerContainer) {
+    console.error("[Patient] Required DOM elements not found!");
+    return;
+  }
+
+  terminal = new DiagnosticTerminal(terminalCard);
+
+  // Listen for terminal events
+  document.addEventListener("toast", (e) => {
+    if (e.detail && toast[e.detail.type]) {
+      toast[e.detail.type](e.detail.message);
+    }
+  });
+
   terminal.addLog("SYSTEM", "Patient check-in system initialized.");
   terminal.addLog("INSTRUCTION", "Langkah 1: Klik 'Aktifkan Scanner Pasien'.");
-  terminal.addLog("INSTRUCTION", "Langkah 2: Arahkan telapak tangan pasien ke kamera.");
+  terminal.addLog(
+    "INSTRUCTION",
+    "Langkah 2: Arahkan telapak tangan pasien ke kamera.",
+  );
 
   scanner = new PalmScanner({
     containerEl: scannerContainer,
@@ -39,10 +62,11 @@ function init() {
     hintEl: document.getElementById("scanner-hint"),
     resultEl: document.getElementById("scanner-result"),
     placeholderEl: document.getElementById("scanner-placeholder"),
-    logFn: (tag, msg) => terminal.addLog(tag, msg),
+    boundingBoxLayerEl: document.getElementById("palm-box-layer"),
+    logFn: (tag, msg) => terminal?.addLog(tag, msg),
     onIdentified: handleIdentified,
     onUnknown: (score) => {
-      terminal.addLog("RESULT", `UNKNOWN — score ${score.toFixed(4)}`);
+      terminal?.addLog("RESULT", `UNKNOWN — score ${score.toFixed(4)}`);
       toast.warning("Pasien tidak dikenali. Silakan hubungi resepsionis.");
       showPatientNotFound();
       enableStartButton();
@@ -88,8 +112,8 @@ async function handleIdentified(user, score, latency) {
     `${user.name} — score ${score.toFixed(4)} — ${latency}ms`,
   );
 
-  // Stop auto-scan while showing patient card
-  scanner.stop();
+  // P0 UX: Pause scanner while showing patient card
+  scanner.pause();
 
   try {
     const result = await apiFetch("/demos/patient/checkin", {
@@ -115,6 +139,7 @@ async function handleIdentified(user, score, latency) {
     toast.error("Gagal mengambil data pasien. Cek koneksi backend.");
     showPatientError(err.message);
     enableStartButton();
+    scanner.resume();
   } finally {
     isProcessing = false;
   }
@@ -181,7 +206,9 @@ function showPatientNotFound() {
   if (!patientPanel) return;
   patientPanel.innerHTML = `
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:var(--space-10) var(--space-6);text-align:center">
-      <div style="font-size:3rem;margin-bottom:var(--space-4)">❌</div>
+      <div class="status-icon status-icon--error" style="margin-bottom:var(--space-4)">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      </div>
       <h3 style="color:var(--color-coral)">Pasien Tidak Dikenali</h3>
       <p class="text-sm" style="margin-top:8px;color:var(--color-coffee-light)">
         Silakan hubungi petugas resepsionis untuk proses manual.
@@ -195,7 +222,9 @@ function showPatientError(message) {
   if (!patientPanel) return;
   patientPanel.innerHTML = `
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:var(--space-10) var(--space-6);text-align:center">
-      <div style="font-size:3rem;margin-bottom:var(--space-4)">⚠️</div>
+      <div class="status-icon status-icon--warning" style="margin-bottom:var(--space-4)">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
       <h3 style="color:var(--color-honey)">Gagal Mengambil Data</h3>
       <p class="text-sm" style="margin-top:8px;color:var(--color-coffee-light)">${escHtml(message || "Cek koneksi backend.")}</p>
     </div>
@@ -207,7 +236,9 @@ function clearPatientCard() {
   if (!patientPanel) return;
   patientPanel.innerHTML = `
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:var(--space-10) var(--space-4);opacity:0.35;text-align:center">
-      <div style="font-size:3rem;margin-bottom:var(--space-4)">🏥</div>
+      <div style="margin-bottom:var(--space-4)">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v4"/><path d="M14 14h-4"/><path d="M14 18h-4"/><path d="M14 8h-4"/><path d="M18 12h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h2"/><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18"/></svg>
+      </div>
       <p class="text-sm">Pindai telapak tangan pasien untuk melihat data rekam medis.</p>
     </div>
   `;
@@ -222,7 +253,7 @@ async function confirmCheckin() {
 
   showModal({
     title: "Konfirmasi Check-in Pasien",
-    icon: "✅",
+    icon: "success", // SVG key
     message: `
       Check-in untuk <strong>${escHtml(pendingUser.name)}</strong>
       pada <strong>${new Date().toLocaleString("id-ID")}</strong>
@@ -243,10 +274,11 @@ async function confirmCheckin() {
       setTimeout(() => {
         clearPatientCard();
         enableStartButton();
+        scanner.resume();
       }, 2000);
     },
     onCancel: () => {
-      // Allow re-confirm
+      scanner.resume();
     },
   });
 }

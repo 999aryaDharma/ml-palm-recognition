@@ -46,15 +46,20 @@ async function init() {
     hintEl: document.getElementById("scanner-hint"),
     resultEl: document.getElementById("scanner-result"),
     placeholderEl: document.getElementById("scanner-placeholder"),
+    boundingBoxLayerEl: document.getElementById("palm-box-layer"),
     onIdentified: (user, score) => {
       if (user.id == currentUserId) {
         toast.success(`Berhasil! Identitas terkonfirmasi sebagai ${user.name}`);
       } else {
-        toast.warning(`Peringatan: Terdeteksi sebagai ${user.name} (ID: ${user.id})`);
+        toast.warning(
+          `Peringatan: Terdeteksi sebagai ${user.name} (ID: ${user.id})`,
+        );
       }
     },
     onUnknown: (score) => {
-      toast.error(`Gagal: Pengguna tidak dikenali (Score: ${score.toFixed(4)})`);
+      toast.error(
+        `Gagal: Pengguna tidak dikenali (Score: ${score.toFixed(4)})`,
+      );
     },
   });
 

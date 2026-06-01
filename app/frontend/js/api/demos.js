@@ -18,7 +18,8 @@ export const attendanceCheckin = (userId, location = "default") =>
     body: JSON.stringify({ user_id: userId, location }),
   });
 
-// ── Access ────────────────────────────────────────────────export const accessCheck = (userId, doorId = "door-01") =>
+// ── Access ────────────────────────────────────────────────
+export const accessCheck = (userId, doorId = "door-01") =>
 apiFetch("/demos/access/check", {
   method: "POST",
   body: JSON.stringify({ user_id: userId, door_id: doorId }),
