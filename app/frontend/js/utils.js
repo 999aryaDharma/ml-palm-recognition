@@ -15,6 +15,7 @@ export const QUALITY_HINTS = {
   network_error: "🌐 Backend tidak dapat dihubungi. Periksa server",
   camera_permission_denied: "🎥 Izin kamera diperlukan untuk memindai telapak",
   no_templates_enrolled: "🚫 Database kosong. Daftarkan (Enroll) user dulu",
+  not_enough_templates: "⚠️ Selesaikan enrollment (butuh 5 template)",
 };
 
 /**

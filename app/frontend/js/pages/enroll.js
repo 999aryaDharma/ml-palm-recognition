@@ -122,6 +122,35 @@ function showStep(stepName) {
   });
 }
 
+// ── New: Handle cancel dengan confirmation ketat ──
+async function handleCancelCapture() {
+  // GUARD: Jika sudah ada template, warning LEBIH ketat
+  if (sampleCount > 0) {
+    let message = "";
+
+    if (sampleCount < MAX_SAMPLES) {
+      message = `⚠️  PERINGATAN: Anda sudah mengumpulkan ${sampleCount}/5 sampel.\n\n`;
+      message += `Jika Anda membatalkan SEKARANG:\n`;
+      message += `  • Semua ${sampleCount} template akan DIHAPUS\n`;
+      message += `  • Anda harus mulai dari awal\n`;
+      message += `  • Tinggal ${MAX_SAMPLES - sampleCount} sampel lagi!\n\n`;
+      message += `Yakin ingin membatalkan?`;
+    } else {
+      message = `⚠️  CRITICAL: Anda sudah 5/5 sampel!\n\n`;
+      message += `Jika Anda membatalkan:\n`;
+      message += `  • Semua 5 template akan DIHAPUS\n`;
+      message += `  • Enrollment DIBATALKAN\n\n`;
+      message += `LANJUTKAN KE VERIFIKASI! Tinggal 1 langkah!\n\n`;
+      message += `Yakin ingin membatalkan?`;
+    }
+
+    const confirmed = confirm(message);
+    if (!confirmed) return;
+  }
+
+  await cancelEnrollment();
+}
+
 // ── STEP 1 → STEP 2 ───────────────────────────────────────
 // Hanya validasi nama secara lokal, langsung aktifkan kamera.
 // createUser() BELUM dipanggil di sini.
@@ -134,6 +163,12 @@ async function goToCaptureStep() {
     return;
   }
 
+  // GUARD: Ensure fresh state
+  if (isUserCreated && currentUserId) {
+    console.warn("[Enroll] goToCaptureStep called but user already created");
+    return;
+  }
+
   pendingName = name;
   currentUserName = name;
 
@@ -141,6 +176,8 @@ async function goToCaptureStep() {
   btnToCapture.textContent = "Menyiapkan kamera...";
 
   showStep("capture");
+  updateProgress();
+  updateSampleStatus();
   await initWebcam();
 }
 
@@ -233,25 +270,24 @@ async function handleCapture(blob) {
         isUserCreated = true;
         sampleCount = 1;
         updateProgress();
-        
+
         // UX: Freeze kamera sesaat untuk feedback sukses
         videoEl.pause();
         webcam.stopAutoCapture();
         scanline.classList.add("hidden");
-        
+
         toast.success(`Template 1/5 berhasil disimpan.`, "Berhasil");
         setHint(`✅ Sampel 1/5 OK!`);
         await sleep(1500); // Tahan freeze
-        
+
         // Resume
         const nextHint = ENROLL_HINTS[sampleCount] || "Tahan posisi...";
         setHint(nextHint);
         videoEl.play();
         webcam.startAutoCapture();
-        
-        // Jeda tambahan agar user sempat mengubah pose tangan sebelum kamera mengambil sampel lagi
-        await sleep(2000); 
 
+        // Jeda tambahan agar user sempat mengubah pose tangan sebelum kamera mengambil sampel lagi
+        await sleep(2000);
       } catch (templateErr) {
         // Aneh tapi bisa terjadi (race condition): validasi lolos tapi addTemplate gagal
         // Hapus user yang baru dibuat agar tidak jadi "hantu"
@@ -267,48 +303,73 @@ async function handleCapture(blob) {
       // ============================================================
       // FASE 2: User sudah ada. Langsung upload template berikutnya.
       // ============================================================
-      setHint(`📷 Mengekstrak sampel ${sampleCount + 1}...`);
+      setHint(
+        `📷 Mengekstrak sampel ${sampleCount + 1}/5... (Usaha ${sampleAttempts}/${MAX_ATTEMPTS_PER_SAMPLE})`,
+      );
 
       try {
-        await addTemplate(currentUserId, blob);
+        const addTemplateResp = await addTemplate(currentUserId, blob);
+        const qualityScore = addTemplateResp.quality_score || lastQualityScore;
+        updateQualityDisplay(qualityScore);
+
         sampleCount++;
+        sampleAttempts = 0;
         updateProgress();
+        updateSampleStatus();
+
+        // PENTING: Stop webcam SEBELUM freeze untuk mencegah race condition
+        webcam.stopAutoCapture();
 
         // UX: Freeze kamera sesaat
         videoEl.pause();
-        webcam.stopAutoCapture();
         scanline.classList.add("hidden");
 
+        // GUARD KETAT: Check sampel == 5
         if (sampleCount >= MAX_SAMPLES) {
-          setHint("✅ 5/5 Sampel terkumpul! Mempersiapkan verifikasi...", "success");
+          if (sampleCount !== MAX_SAMPLES) {
+            console.warn(
+              `[Enroll] Anomali: sampleCount=${sampleCount} > MAX_SAMPLES=${MAX_SAMPLES}`,
+            );
+          }
+
+          setHint(
+            "✅ 5/5 Sampel terkumpul! Mempersiapkan verifikasi...",
+            "success",
+          );
           toast.success("5 template berhasil dikumpulkan.", "Sukses");
-          
+
           await sleep(2000);
           videoEl.play();
-          
+
+          // PENTING: Verification hanya dari sini
           await runVerification();
         } else {
-          setHint(`✅ Sampel ${sampleCount}/5 OK!`);
-          toast.success(
-            `Template ${sampleCount}/5 berhasil disimpan.`,
-            "Berhasil",
+          setHint(
+            `✅ Sampel ${sampleCount}/5 OK! Quality: ${Math.round(qualityScore * 100)}%`,
           );
-          
-          await sleep(1500); // Tahan freeze
-          
-          // Lanjut ke sampel berikutnya
+          toast.success(`✓ Sampel ${sampleCount}/5 berhasil!`, "Berhasil");
+
+          await sleep(1500);
+
           const nextHint = ENROLL_HINTS[sampleCount] || "Tahan posisi...";
           setHint(nextHint);
+          updateSampleStatus();
           videoEl.play();
+
+          // PENTING: Restart SETELAH freeze
           webcam.startAutoCapture();
-          
-          // Jeda tambahan agar user sempat mengubah pose tangan sebelum kamera mengambil sampel lagi
+
           await sleep(2000);
         }
       } catch (err) {
+        const qualityScore = err.quality_score || 0;
+        updateQualityDisplay(qualityScore);
+
         const hint =
           QUALITY_HINTS[err.error] || "Geser tangan sedikit dan tahan";
-        setHint(hint);
+        setHint(
+          `❌ ${hint} (Usaha ${sampleAttempts}/${MAX_ATTEMPTS_PER_SAMPLE})`,
+        );
       }
     }
   } finally {
@@ -325,6 +386,51 @@ async function handleCapture(blob) {
 
 // ── Verifikasi Akhir ───────────────────────────────────────
 async function runVerification() {
+  // GUARD 1: Pastikan benar-benar sudah 5 sampel
+  if (sampleCount !== MAX_SAMPLES) {
+    console.error(
+      `[Enroll] CRITICAL: runVerification called but sampleCount=${sampleCount} !== MAX_SAMPLES=${MAX_SAMPLES}`,
+    );
+    toast.error(
+      `ERROR: Sampel belum lengkap (${sampleCount}/${MAX_SAMPLES}). Lanjutkan capture.`,
+    );
+    showStep("capture");
+    isCapturing = false;
+    webcam.startAutoCapture();
+    return;
+  }
+
+  // GUARD 2: Verifikasi ke backend bahwa benar-benar tersimpan 5 template
+  try {
+    const verifyReadyEndpoint = `/users/${currentUserId}/verify-ready`;
+    try {
+      const readyCheck = await apiFetch(verifyReadyEndpoint);
+
+      if (!readyCheck.ready) {
+        const backendCount = readyCheck.template_count || 0;
+        console.warn(
+          `[Enroll] Backend verify-ready returned false: only ${backendCount}/${readyCheck.required} templates`,
+        );
+        sampleCount = backendCount;
+        updateProgress();
+        toast.warning(
+          `Template belum cukup di sistem (${backendCount}/${MAX_SAMPLES}). Lanjutkan capture.`,
+        );
+        showStep("capture");
+        isCapturing = false;
+        updateSampleStatus();
+        webcam.startAutoCapture();
+        return;
+      }
+    } catch (checkErr) {
+      console.warn(
+        "[Enroll] verify-ready endpoint not available, proceeding without backend check",
+      );
+    }
+  } catch (err) {
+    console.error("[Enroll] Error during ready check:", err);
+  }
+
   showStep("verifying");
   await sleep(1200);
 
@@ -334,9 +440,10 @@ async function runVerification() {
       verifyBlob = await webcam.captureFrame();
     }
 
+    // GUARD 3: Frame HARUS berhasil diambil
     if (!verifyBlob) {
       throw new Error(
-        "Tidak dapat mengambil frame verifikasi. Pastikan kamera masih aktif.",
+        "Kamera tidak responsif. Silakan periksa koneksi dan izin kamera, lalu coba lagi.",
       );
     }
 
@@ -346,31 +453,24 @@ async function runVerification() {
       webcam.stop();
       successName.textContent = currentUserName;
       showStep("success");
-      toast.success("Enrollment selesai!", "Berhasil");
+      toast.success(
+        `Enrollment berhasil! 5 template terverifikasi untuk ${currentUserName}.`,
+        "Berhasil",
+      );
     } else if (result.status === "identified") {
       throw new Error(
-        `Verifikasi gagal: terdeteksi sebagai ${result.user?.name || "orang lain"}. Coba scan ulang.`,
+        `Verifikasi gagal: terdeteksi sebagai ${result.user?.name || "orang lain"}. Template tidak konsisten.`,
       );
     } else {
       throw new Error(
-        "Telapak belum dikenali. Coba scan ulang dengan posisi lebih jelas.",
+        "Template belum terverifikasi dengan baik. Kualitas tidak konsisten antar variasi posisi.",
       );
     }
   } catch (err) {
-    toast.warning(err.message || "Verifikasi gagal. Scan ulang diperlukan.");
+    console.error("[Enroll] Verification error:", err);
+    toast.error(err.message || "Verifikasi gagal");
 
-    // Kembali ke capture — template yang sudah ada tetap berguna
-    // FIX: Jangan reset sampleCount agar user tidak dihapus saat cleanupOnExit
-    updateProgress();
-    showStep("capture");
-    setHint("🔄 Scan ulang untuk verifikasi.");
-
-    isCapturing = false;
-    if (webcam?.isRunning) {
-      webcam.startAutoCapture();
-    } else {
-      await initWebcam();
-    }
+    showStep("verificationFailed");
   }
 }
 
@@ -444,7 +544,7 @@ function cleanupOnExit() {
   if (isUserCreated && currentUserId && sampleCount === 0) {
     const url = `${BASE_URL}/users/${currentUserId}`;
     if (navigator.sendBeacon) {
-      // sendBeacon tidak support DELETE secara standar, 
+      // sendBeacon tidak support DELETE secara standar,
       // tapi kita coba fetch dengan keepalive sebagai alternatif modern
       fetch(url, { method: "DELETE", keepalive: true }).catch(() => {});
     }

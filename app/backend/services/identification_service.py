@@ -65,6 +65,13 @@ class IdentificationService:
         if not enrolled:
             return _err("no_templates_enrolled", detection)
 
+        # Guard: Hanya proses user yang sudah memiliki template lengkap (minimal 5)
+        min_templates = getattr(self.settings, "min_template_per_user", 5) if self.settings else 5
+        valid_enrolled = [u for u in enrolled if len(u.get("embeddings", [])) >= min_templates]
+
+        if not valid_enrolled:
+            return _err("not_enough_templates", detection)
+
         threshold = self.settings.default_threshold if self.settings else 0.70
         top_k     = self.settings.top_k_templates   if self.settings else 3
 
@@ -72,10 +79,8 @@ class IdentificationService:
         best_user_id = None
         best_name    = None
 
-        for user in enrolled:
+        for user in valid_enrolled:
             embs = user.get("embeddings", [])
-            if not embs:
-                continue
             sims = sorted(
                 [_cosine(embedding, e) for e in embs],
                 reverse=True,
