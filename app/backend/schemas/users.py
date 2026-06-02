@@ -21,3 +21,8 @@ class TemplateCreateResponse(BaseModel):
 
 class DeleteUserResponse(BaseModel):
     deleted: bool
+
+class VerifyReadyResponse(BaseModel):
+    ready: bool
+    template_count: int
+    required: int = 5

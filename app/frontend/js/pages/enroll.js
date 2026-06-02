@@ -1,33 +1,5 @@
 // ============================================================
-// js/pages/enroll.js — Enrollment page logic (FIXED v2)
-//
-// FLOW YANG BENAR (setelah perbaikan):
-//
-//   [Step 1] User isi nama
-//            → Validasi: nama tidak boleh kosong
-//            → BELUM ke backend sama sekali
-//
-//   [Step 2] Kamera aktif, auto-capture mulai
-//            → Setiap frame dikirim ke POST /validate-frame
-//            → Jika quality gate GAGAL: tampilkan hint, ulangi capture
-//            → Jika quality gate LOLOS untuk pertama kali:
-//                 1. POST /users  ← createUser() dipanggil SEKARANG
-//                 2. POST /users/{id}/templates dengan blob yang sama
-//                 3. sampleCount = 1, isUserCreated = true
-//
-//   [Step 3] Capture sampel 2-5
-//            → POST /users/{id}/templates langsung (user sudah ada)
-//            → Progress bertambah hanya jika berhasil
-//
-//   [Step 4] Verifikasi: POST /identify
-//            → Jika cocok dengan user yang baru dibuat → Sukses
-//            → Jika gagal → retry capture (user & template tetap ada)
-//
-// MENGAPA INI BENAR:
-//   - User di backend HANYA dibuat setelah terbukti telapak bisa di-detect
-//   - Tidak ada lagi user dengan 0 template "hantu"
-//   - Kamera harus menyala dan telapak terdeteksi sebelum apapun disimpan
-//   - Cancel setelah user dibuat = hapus user dari backend (cleanup)
+// js/pages/enroll.js — Enrollment page logic (LOCAL BUFFER)
 // ============================================================
 
 import { mountNavbar } from "../components/navbar.js";
@@ -40,14 +12,14 @@ import { QUALITY_HINTS, sleep } from "../utils.js";
 
 // ── State ──────────────────────────────────────────────────
 let webcam = null;
-let currentUserId = null; // null SAMPAI scan pertama berhasil + createUser() dipanggil
+let currentUserId = null;
 let currentUserName = "";
-let pendingName = ""; // nama dari step 1, belum dikirim ke backend
+let pendingName = "";
 let sampleCount = 0;
 const MAX_SAMPLES = 5;
 let isCapturing = false;
-let isUserCreated = false; // guard: true setelah createUser() berhasil
-let steps = {}; // mapping untuk DOM section langkah-langkah
+let isUserCreated = false;
+let capturedBlobs = []; // ARRAY LOKAL: Menyimpan 5 foto di RAM terlebih dahulu
 
 const ENROLL_HINTS = [
   "🔍 Tahan posisi telapak lurus dan tegak di depan kamera",
@@ -60,13 +32,11 @@ const ENROLL_HINTS = [
 // ── DOM Elements ───────────────────────────────────────────
 let inputName, btnToCapture, btnCancelCapture;
 let videoEl, scannerHint, scannerLoading, scanline;
-let sampleBadge, sampleDots, successName;
+let sampleBadge, sampleDots, successName, steps;
 
-// ── Init ───────────────────────────────────────────────────
 async function init() {
   mountNavbar();
 
-  // Retrieve elements inside init
   inputName = document.getElementById("input-name");
   btnToCapture = document.getElementById("btn-to-capture");
   btnCancelCapture = document.getElementById("btn-cancel-capture");
@@ -85,12 +55,6 @@ async function init() {
     success: document.getElementById("step-success"),
   };
 
-  if (!inputName || !btnToCapture) {
-    console.error("[Enroll] Essential DOM elements not found!");
-    return;
-  }
-
-  // Fix: Handle form submission to prevent page reload
   const formName = document.getElementById("form-name");
   if (formName) {
     formName.addEventListener("submit", (e) => {
@@ -100,401 +64,175 @@ async function init() {
   }
 
   btnCancelCapture?.addEventListener("click", cancelEnrollment);
-
-  inputName.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      goToCaptureStep();
-    }
-  });
-
-  inputName.focus();
-
   window.addEventListener("beforeunload", cleanupOnExit);
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden && webcam) webcam.stop();
-  });
 }
 
 function showStep(stepName) {
   Object.keys(steps).forEach((key) => {
-    steps[key].classList.toggle("hidden", key !== stepName);
+    if (steps[key]) steps[key].classList.toggle("hidden", key !== stepName);
   });
 }
 
-// ── New: Handle cancel dengan confirmation ketat ──
-async function handleCancelCapture() {
-  // GUARD: Jika sudah ada template, warning LEBIH ketat
-  if (sampleCount > 0) {
-    let message = "";
-
-    if (sampleCount < MAX_SAMPLES) {
-      message = `⚠️  PERINGATAN: Anda sudah mengumpulkan ${sampleCount}/5 sampel.\n\n`;
-      message += `Jika Anda membatalkan SEKARANG:\n`;
-      message += `  • Semua ${sampleCount} template akan DIHAPUS\n`;
-      message += `  • Anda harus mulai dari awal\n`;
-      message += `  • Tinggal ${MAX_SAMPLES - sampleCount} sampel lagi!\n\n`;
-      message += `Yakin ingin membatalkan?`;
-    } else {
-      message = `⚠️  CRITICAL: Anda sudah 5/5 sampel!\n\n`;
-      message += `Jika Anda membatalkan:\n`;
-      message += `  • Semua 5 template akan DIHAPUS\n`;
-      message += `  • Enrollment DIBATALKAN\n\n`;
-      message += `LANJUTKAN KE VERIFIKASI! Tinggal 1 langkah!\n\n`;
-      message += `Yakin ingin membatalkan?`;
-    }
-
-    const confirmed = confirm(message);
-    if (!confirmed) return;
-  }
-
-  await cancelEnrollment();
-}
-
-// ── STEP 1 → STEP 2 ───────────────────────────────────────
-// Hanya validasi nama secara lokal, langsung aktifkan kamera.
-// createUser() BELUM dipanggil di sini.
 async function goToCaptureStep() {
   const name = inputName.value.trim();
-
   if (!name || name.length < 2) {
     toast.warning("Nama minimal 2 karakter.");
-    inputName.focus();
-    return;
-  }
-
-  // GUARD: Ensure fresh state
-  if (isUserCreated && currentUserId) {
-    console.warn("[Enroll] goToCaptureStep called but user already created");
     return;
   }
 
   pendingName = name;
   currentUserName = name;
-
   btnToCapture.disabled = true;
-  btnToCapture.textContent = "Menyiapkan kamera...";
 
   showStep("capture");
   updateProgress();
-  updateSampleStatus();
   await initWebcam();
 }
 
-// ── Kamera ─────────────────────────────────────────────────
 async function initWebcam() {
   setHint("🎥 Menyalakan kamera...");
-
-  // Bersihkan retry button lama jika ada
-  document.getElementById("btn-retry-camera")?.remove();
-
   try {
     webcam = new WebcamCapture(videoEl, {
       onCapture: handleCapture,
-      captureInterval: 1500, // Faster polling, but we gate it with isCapturing
+      captureInterval: 1200,
     });
-
     await webcam.start();
-    setHint(ENROLL_HINTS[0] || "🖐 Tunjukkan telapak tangan ke kamera");
+    setHint(ENROLL_HINTS[0]);
     webcam.startAutoCapture();
   } catch (err) {
     setHint("❌ Tidak dapat mengakses kamera", true);
-    toast.error(
-      "Gagal mengakses kamera. Pastikan izin sudah diberikan di browser.",
-    );
-    showRetryButton();
+    toast.error("Gagal mengakses kamera.");
   }
 }
 
-// ── Handle Capture ─────────────────────────────────────────
 async function handleCapture(blob) {
-  if (isCapturing || sampleCount >= MAX_SAMPLES) return;
+  if (isCapturing || capturedBlobs.length >= MAX_SAMPLES) return;
   isCapturing = true;
 
   scannerLoading.classList.remove("hidden");
   scanline.classList.remove("hidden");
 
   try {
-    if (!isUserCreated) {
-      // ============================================================
-      // FASE 1: User belum ada di backend.
-      // Langkah: validate-frame dulu → jika lolos → createUser → addTemplate
-      // Ini memastikan user HANYA dibuat jika telapak memang bisa dideteksi.
-      // ============================================================
-      setHint("🔍 Mendeteksi telapak...");
+    setHint(`🔍 Menganalisis kualitas sampel ${capturedBlobs.length + 1}/5...`);
 
-      // Cek quality gate tanpa menyimpan apapun
-      const validateForm = new FormData();
-      validateForm.append("image", blob, "frame.jpg");
+    // UJI KUALITAS SAJA, Jangan simpan ke database
+    const validateForm = new FormData();
+    validateForm.append("image", blob, "frame.jpg");
 
-      let validateOk = false;
-      try {
-        await apiFetch("/validate-frame", {
-          method: "POST",
-          body: validateForm,
-        });
-        validateOk = true;
-      } catch (valErr) {
-        // Quality gate gagal — tampilkan hint, jangan buat user
-        const hint =
-          QUALITY_HINTS[valErr.error] || "Arahkan telapak tangan ke kamera";
-        setHint(hint);
-        isCapturing = false;
-        scannerLoading.classList.add("hidden");
-        return;
-      }
-
-      if (!validateOk) {
-        isCapturing = false;
-        scannerLoading.classList.add("hidden");
-        return;
-      }
-
-      // Frame valid → sekarang baru buat user di backend
-      setHint("⏳ Mendaftarkan pengguna...");
-      let newUser;
-      try {
-        newUser = await createUser(pendingName);
-      } catch (createErr) {
-        setHint("❌ Gagal terhubung ke server. Cek backend.", true);
-        toast.error("Backend tidak dapat dihubungi.");
-        isCapturing = false;
-        scannerLoading.classList.add("hidden");
-        return;
-      }
-
-      // Upload template dengan blob yang sama (sudah terbukti valid)
-      try {
-        await addTemplate(newUser.id, blob);
-        currentUserId = newUser.id;
-        isUserCreated = true;
-        sampleCount = 1;
-        updateProgress();
-
-        // UX: Freeze kamera sesaat untuk feedback sukses
-        videoEl.pause();
-        webcam.stopAutoCapture();
-        scanline.classList.add("hidden");
-
-        toast.success(`Template 1/5 berhasil disimpan.`, "Berhasil");
-        setHint(`✅ Sampel 1/5 OK!`);
-        await sleep(1500); // Tahan freeze
-
-        // Resume
-        const nextHint = ENROLL_HINTS[sampleCount] || "Tahan posisi...";
-        setHint(nextHint);
-        videoEl.play();
-        webcam.startAutoCapture();
-
-        // Jeda tambahan agar user sempat mengubah pose tangan sebelum kamera mengambil sampel lagi
-        await sleep(2000);
-      } catch (templateErr) {
-        // Aneh tapi bisa terjadi (race condition): validasi lolos tapi addTemplate gagal
-        // Hapus user yang baru dibuat agar tidak jadi "hantu"
-        await deleteUser(newUser.id).catch(() => {});
-        const hint =
-          QUALITY_HINTS[templateErr.error] || "Posisikan ulang telapak";
-        setHint(hint);
-        isCapturing = false;
-        scannerLoading.classList.add("hidden");
-        return;
-      }
-    } else {
-      // ============================================================
-      // FASE 2: User sudah ada. Langsung upload template berikutnya.
-      // ============================================================
+    try {
+      await apiFetch("/validate-frame", { method: "POST", body: validateForm });
+    } catch (valErr) {
       setHint(
-        `📷 Mengekstrak sampel ${sampleCount + 1}/5... (Usaha ${sampleAttempts}/${MAX_ATTEMPTS_PER_SAMPLE})`,
+        QUALITY_HINTS[valErr.error] || "Arahkan telapak tangan ke kamera",
       );
+      return;
+    }
 
-      try {
-        const addTemplateResp = await addTemplate(currentUserId, blob);
-        const qualityScore = addTemplateResp.quality_score || lastQualityScore;
-        updateQualityDisplay(qualityScore);
+    // JIKA LOLOS -> Simpan frame di RAM (Local Buffer)
+    capturedBlobs.push(blob);
+    sampleCount = capturedBlobs.length;
+    updateProgress();
 
-        sampleCount++;
-        sampleAttempts = 0;
-        updateProgress();
-        updateSampleStatus();
+    if (sampleCount >= MAX_SAMPLES) {
+      setHint("✅ 5/5 Sampel terkumpul! Menyimpan ke server...", "success");
+      scanline.classList.add("hidden");
 
-        // PENTING: Stop webcam SEBELUM freeze untuk mencegah race condition
-        webcam.stopAutoCapture();
+      webcam.stopAutoCapture(); // Hentikan kamera
+      await sleep(1000);
 
-        // UX: Freeze kamera sesaat
-        videoEl.pause();
-        scanline.classList.add("hidden");
-
-        // GUARD KETAT: Check sampel == 5
-        if (sampleCount >= MAX_SAMPLES) {
-          if (sampleCount !== MAX_SAMPLES) {
-            console.warn(
-              `[Enroll] Anomali: sampleCount=${sampleCount} > MAX_SAMPLES=${MAX_SAMPLES}`,
-            );
-          }
-
-          setHint(
-            "✅ 5/5 Sampel terkumpul! Mempersiapkan verifikasi...",
-            "success",
-          );
-          toast.success("5 template berhasil dikumpulkan.", "Sukses");
-
-          await sleep(2000);
-          videoEl.play();
-
-          // PENTING: Verification hanya dari sini
-          await runVerification();
-        } else {
-          setHint(
-            `✅ Sampel ${sampleCount}/5 OK! Quality: ${Math.round(qualityScore * 100)}%`,
-          );
-          toast.success(`✓ Sampel ${sampleCount}/5 berhasil!`, "Berhasil");
-
-          await sleep(1500);
-
-          const nextHint = ENROLL_HINTS[sampleCount] || "Tahan posisi...";
-          setHint(nextHint);
-          updateSampleStatus();
-          videoEl.play();
-
-          // PENTING: Restart SETELAH freeze
-          webcam.startAutoCapture();
-
-          await sleep(2000);
-        }
-      } catch (err) {
-        const qualityScore = err.quality_score || 0;
-        updateQualityDisplay(qualityScore);
-
-        const hint =
-          QUALITY_HINTS[err.error] || "Geser tangan sedikit dan tahan";
-        setHint(
-          `❌ ${hint} (Usaha ${sampleAttempts}/${MAX_ATTEMPTS_PER_SAMPLE})`,
-        );
-      }
+      await finalizeEnrollment(); // PROSES UPLOAD DIMULAI
+    } else {
+      setHint(`✅ Sampel ${sampleCount}/5 OK!`);
+      await sleep(1000);
+      setHint(ENROLL_HINTS[sampleCount] || "Tahan posisi...");
+      await sleep(1500); // Waktu agar user mengubah pose
     }
   } finally {
-    // Only un-flag capturing if we are still collecting samples
     if (sampleCount < MAX_SAMPLES) {
       isCapturing = false;
       scannerLoading.classList.add("hidden");
-      if (webcam?.isRunning && videoEl.paused === false) {
-        scanline.classList.remove("hidden");
-      }
+      if (webcam?.isRunning) scanline.classList.remove("hidden");
     }
   }
 }
 
-// ── Verifikasi Akhir ───────────────────────────────────────
-async function runVerification() {
-  // GUARD 1: Pastikan benar-benar sudah 5 sampel
-  if (sampleCount !== MAX_SAMPLES) {
-    console.error(
-      `[Enroll] CRITICAL: runVerification called but sampleCount=${sampleCount} !== MAX_SAMPLES=${MAX_SAMPLES}`,
-    );
-    toast.error(
-      `ERROR: Sampel belum lengkap (${sampleCount}/${MAX_SAMPLES}). Lanjutkan capture.`,
-    );
-    showStep("capture");
-    isCapturing = false;
-    webcam.startAutoCapture();
-    return;
-  }
+// ── PROSES UPLOAD (Hanya berjalan jika sudah pasti ada 5 gambar) ──
+async function finalizeEnrollment() {
+  showStep("verifying");
+  setHint("Mendaftarkan pengguna ke server...", "info");
 
-  // GUARD 2: Verifikasi ke backend bahwa benar-benar tersimpan 5 template
   try {
-    const verifyReadyEndpoint = `/users/${currentUserId}/verify-ready`;
+    // 1. BUAT USER DI DATABASE (Dijamin aman dari duplikat)
+    let newUser;
     try {
-      const readyCheck = await apiFetch(verifyReadyEndpoint);
-
-      if (!readyCheck.ready) {
-        const backendCount = readyCheck.template_count || 0;
-        console.warn(
-          `[Enroll] Backend verify-ready returned false: only ${backendCount}/${readyCheck.required} templates`,
-        );
-        sampleCount = backendCount;
-        updateProgress();
-        toast.warning(
-          `Template belum cukup di sistem (${backendCount}/${MAX_SAMPLES}). Lanjutkan capture.`,
-        );
-        showStep("capture");
-        isCapturing = false;
-        updateSampleStatus();
-        webcam.startAutoCapture();
+      newUser = await createUser(pendingName);
+    } catch (createErr) {
+      if (createErr.status === 409 || createErr.error === "user_exists") {
+        toast.warning(`Nama "${pendingName}" sudah terdaftar. Silakan ganti.`);
+        cancelEnrollment();
         return;
       }
-    } catch (checkErr) {
-      console.warn(
-        "[Enroll] verify-ready endpoint not available, proceeding without backend check",
-      );
-    }
-  } catch (err) {
-    console.error("[Enroll] Error during ready check:", err);
-  }
-
-  showStep("verifying");
-  await sleep(1200);
-
-  try {
-    let verifyBlob = null;
-    if (webcam?.isRunning) {
-      verifyBlob = await webcam.captureFrame();
+      throw new Error("Gagal membuat profil di server.");
     }
 
-    // GUARD 3: Frame HARUS berhasil diambil
-    if (!verifyBlob) {
-      throw new Error(
-        "Kamera tidak responsif. Silakan periksa koneksi dan izin kamera, lalu coba lagi.",
-      );
+    currentUserId = newUser.id;
+    isUserCreated = true;
+
+    // 2. UNGGAH 5 TEMPLATE SECARA BERURUTAN
+    for (let i = 0; i < capturedBlobs.length; i++) {
+      setHint(`Mengunggah template biometrik ${i + 1} dari 5...`, "info");
+      await addTemplate(currentUserId, capturedBlobs[i]);
+
+      // JEDA SANGAT PENTING: Mencegah SQLite Error / Lock
+      await sleep(600);
     }
+
+    // 3. VERIFIKASI AKHIR
+    setHint("Memverifikasi kecocokan akhir...", "info");
+    await sleep(1000);
+
+    let verifyBlob = await webcam.captureFrame();
+    if (!verifyBlob) throw new Error("Kamera terputus saat verifikasi.");
 
     const result = await identify(verifyBlob);
 
     if (result.status === "identified" && result.user?.id === currentUserId) {
       webcam.stop();
-      successName.textContent = currentUserName;
+      if (successName) successName.textContent = currentUserName;
       showStep("success");
       toast.success(
-        `Enrollment berhasil! 5 template terverifikasi untuk ${currentUserName}.`,
+        `Enrollment berhasil untuk ${currentUserName}.`,
         "Berhasil",
       );
-    } else if (result.status === "identified") {
-      throw new Error(
-        `Verifikasi gagal: terdeteksi sebagai ${result.user?.name || "orang lain"}. Template tidak konsisten.`,
-      );
     } else {
-      throw new Error(
-        "Template belum terverifikasi dengan baik. Kualitas tidak konsisten antar variasi posisi.",
-      );
+      throw new Error("Biometrik tidak konsisten. Silakan ulangi.");
     }
-  } catch (err) {
-    console.error("[Enroll] Verification error:", err);
-    toast.error(err.message || "Verifikasi gagal");
+  } catch (error) {
+    toast.error(error.message);
 
-    showStep("verificationFailed");
+    // Auto Rollback: Jika terjadi error di tengah unggahan, hapus user
+    if (currentUserId) {
+      await deleteUser(currentUserId).catch(() => {});
+    }
+
+    resetLocalState();
+    showStep("capture");
+    await initWebcam();
   }
 }
 
-// ── Progress UI ────────────────────────────────────────────
+// ── Utilities ──────────────────────────────────────────────
 function updateProgress() {
   if (sampleBadge) {
     sampleBadge.textContent = `${sampleCount} / ${MAX_SAMPLES}`;
-    sampleBadge.className = "badge";
-    if (sampleCount === 0) {
-      sampleBadge.classList.add("badge--processing");
-    } else if (sampleCount >= MAX_SAMPLES) {
-      sampleBadge.classList.add("badge--identified");
-    } else {
-      sampleBadge.classList.add("badge--scanning");
-    }
+    sampleBadge.className =
+      "badge " +
+      (sampleCount >= MAX_SAMPLES ? "badge--identified" : "badge--scanning");
   }
-
   sampleDots.forEach((dot, idx) => {
     dot.classList.remove("active", "completed");
-    if (idx < sampleCount) {
-      dot.classList.add("completed");
-    } else if (idx === sampleCount && sampleCount < MAX_SAMPLES) {
-      dot.classList.add("active");
-    }
+    if (idx < sampleCount) dot.classList.add("completed");
+    else if (idx === sampleCount) dot.classList.add("active");
   });
 }
 
@@ -504,65 +242,33 @@ function setHint(text, isError = false) {
   scannerHint.style.color = isError ? "var(--color-coral)" : "";
 }
 
-function showRetryButton() {
-  document.getElementById("btn-retry-camera")?.remove();
-  const btn = document.createElement("button");
-  btn.id = "btn-retry-camera";
-  btn.className = "btn btn--secondary";
-  btn.textContent = "Coba Lagi";
-  btn.style.marginTop = "var(--space-4)";
-  btn.onclick = async () => {
-    btn.remove();
-    await initWebcam();
-  };
-  const scannerEl = document.getElementById("scanner-container");
-  scannerEl?.insertAdjacentElement("afterend", btn);
+function resetLocalState() {
+  capturedBlobs = [];
+  sampleCount = 0;
+  currentUserId = null;
+  isUserCreated = false;
+  isCapturing = false;
+  updateProgress();
 }
 
-// ── Cancel ─────────────────────────────────────────────────
 async function cancelEnrollment() {
   webcam?.stop();
-
   if (isUserCreated && currentUserId) {
-    // Hapus user dari backend — enrollment dibatalkan
     await deleteUser(currentUserId).catch(() => {});
   }
-
   resetLocalState();
   window.history.length > 1
     ? window.history.back()
     : (window.location.href = "index.html");
 }
 
-// ── Cleanup saat tab ditutup / navigasi pergi ──────────────
 function cleanupOnExit() {
   webcam?.stop();
-
-  // Hanya hapus jika user terlanjur dibuat tapi BELUM ada template sama sekali
-  // Jika sudah ada > 0 template, biarkan saja (user bisa hapus manual nanti)
-  // Ini menghindari user terhapus saat berpindah ke halaman detail/success.
-  if (isUserCreated && currentUserId && sampleCount === 0) {
+  if (isUserCreated && currentUserId && sampleCount < MAX_SAMPLES) {
     const url = `${BASE_URL}/users/${currentUserId}`;
-    if (navigator.sendBeacon) {
-      // sendBeacon tidak support DELETE secara standar,
-      // tapi kita coba fetch dengan keepalive sebagai alternatif modern
+    if (navigator.sendBeacon)
       fetch(url, { method: "DELETE", keepalive: true }).catch(() => {});
-    }
   }
 }
 
-function resetLocalState() {
-  currentUserId = null;
-  currentUserName = "";
-  pendingName = "";
-  sampleCount = 0;
-  isUserCreated = false;
-  isCapturing = false;
-  updateProgress();
-  btnToCapture.disabled = false;
-  btnToCapture.textContent = "Mulai Enrollment";
-  inputName.value = "";
-}
-
-// ── Run ────────────────────────────────────────────────────
 init();

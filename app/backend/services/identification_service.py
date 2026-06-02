@@ -61,13 +61,17 @@ class IdentificationService:
             return _err("image_too_blurry", detection)
 
         # ── Stage 3: Matching ─────────────────────────────────────────────────
+        # ── Stage 3: Matching ─────────────────────────────────────────────────
         enrolled = self.cache.get_all() if self.cache else []
         if not enrolled:
             return _err("no_templates_enrolled", detection)
 
-        # Guard: Hanya proses user yang sudah memiliki template lengkap (minimal 5)
-        min_templates = getattr(self.settings, "min_template_per_user", 5) if self.settings else 5
-        valid_enrolled = [u for u in enrolled if len(u.get("embeddings", [])) >= min_templates]
+        # HAPUS batasan 5 template. 
+        # Cukup pastikan user minimal memiliki 1 template agar perhitungan matematika (np.mean) tidak error.
+        valid_enrolled = [u for u in enrolled if len(u.get("embeddings", [])) >= 1]
+
+        if not valid_enrolled:
+            return _err("no_templates_enrolled", detection)
 
         if not valid_enrolled:
             return _err("not_enough_templates", detection)

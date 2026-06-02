@@ -6,6 +6,13 @@ from db.database import get_db
 from db.repositories import UserRepository, TemplateRepository
 from schemas.users import UserCreateRequest, UserResponse, DeleteUserResponse, TemplateCreateResponse
 from services.image_service import upload_to_pil
+from schemas.users import (
+    UserCreateRequest, 
+    UserResponse, 
+    DeleteUserResponse, 
+    TemplateCreateResponse,
+    VerifyReadyResponse  # <--- Tambahkan import ini
+)
 
 router = APIRouter()
 
@@ -22,6 +29,24 @@ def _to_user_response(user) -> UserResponse:
 @router.post("", response_model=UserResponse)
 def create_user(payload: UserCreateRequest, db: Session = Depends(get_db)):
     repo = UserRepository(db)
+    
+    # ── MENCEGAH DUPLIKAT NAMA & CLEANUP GHOST USER ──
+    existing_users = repo.list_all()
+    for u in existing_users:
+        # Pengecekan tidak sensitif terhadap huruf besar/kecil dan spasi
+        if u.name.strip().lower() == payload.name.strip().lower():
+            # Jika user ada tapi jumlah template 0 (kemungkinan sisa error enrollment sebelumnya)
+            # Hapus user lama yang cacat agar tidak nyangkut
+            if len(u.templates or []) == 0:
+                repo.delete(u.id)
+            else:
+                # Jika user ada dan VALID, tolak dengan HTTP 409 Conflict
+                raise HTTPException(
+                    status_code=409,
+                    detail={"error": "user_exists", "message": f"Pengguna dengan nama '{payload.name}' sudah terdaftar."}
+                )
+                
+    # Buat user baru jika aman
     user = repo.create(payload.name)
     user.templates = []
     return _to_user_response(user)
@@ -142,4 +167,25 @@ async def add_template(
         template_id=template.id,
         quality_score=round(quality_score, 4),
         embedding_norm=round(float(np.linalg.norm(embedding)), 4),
+    )
+
+@router.get("/{user_id}/verify-ready", response_model=VerifyReadyResponse)
+def verify_ready(user_id: int, db: Session = Depends(get_db)):
+    repo = UserRepository(db)
+    user = repo.get(user_id)
+    
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "user_not_found", "message": "User tidak ditemukan."},
+        )
+
+    # Hitung jumlah template yang benar-benar tersimpan di database
+    template_count = len(user.templates or [])
+    required_templates = 5
+    
+    return VerifyReadyResponse(
+        ready=(template_count >= required_templates),
+        template_count=template_count,
+        required=required_templates
     )

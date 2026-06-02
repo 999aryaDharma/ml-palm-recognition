@@ -35,3 +35,7 @@ export const addTemplate = (userId, imageBlob) => {
 
 /** GET /users/:id/templates */
 export const getTemplates = (userId) => apiFetch(`/users/${userId}/templates`);
+
+
+/** GET /users/:id/verify-ready */
+export const verifyUserReady = (userId) => apiFetch(`/users/${userId}/verify-ready`);
