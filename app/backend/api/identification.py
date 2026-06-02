@@ -67,28 +67,3 @@ def _error_message(code: str) -> str:
         "not_enough_templates": "Template biometrik belum lengkap (butuh 5). Selesaikan enrollment terlebih dahulu.",
     }
     return messages.get(code, "Gagal memproses telapak. Coba lagi.")  
-
-
-@router.get("/users/{user_id}/verify-ready")
-def check_enrollment_ready(user_id: int, request: Request):
-    """
-    Endpoint verifikasi jumlah template untuk guard enrollment.
-    Memastikan user memiliki minimal template yang dibutuhkan sebelum proses verifikasi akhir.
-    """
-    cache = getattr(request.app.state, "cache", None)
-    settings = getattr(request.app.state, "settings", None)
-    required = getattr(settings, "min_template_per_user", 5) if settings else 5
-    
-    count = 0
-    if cache:
-        enrolled = cache.get_all()
-        user = next((u for u in enrolled if u.get("user_id") == user_id), None)
-        if user:
-            count = len(user.get("embeddings", []))
-            
-    return {
-        "ready": count >= required,
-        "template_count": count,
-        "required": required,
-        "message": f"User has {count}/{required} templates"
-    }

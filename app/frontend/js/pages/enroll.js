@@ -4,7 +4,7 @@
 
 import { mountNavbar } from "../components/navbar.js";
 import { WebcamCapture } from "../components/webcam.js";
-import { createUser, addTemplate, deleteUser } from "../api/users.js";
+import { createUser, addTemplate, deleteUser, verifyUserReady } from "../api/users.js";
 import { identify } from "../api/identify.js";
 import { apiFetch, BASE_URL } from "../api/client.js";
 import { toast } from "../components/toast.js";
@@ -187,7 +187,18 @@ async function finalizeEnrollment() {
       await sleep(600);
     }
 
-    // 3. VERIFIKASI AKHIR
+    // 3. VERIFIKASI TEMPLATE COUNT DI DATABASE
+    setHint("Memverifikasi template di server...", "info");
+    await sleep(500);
+    
+    const readyCheck = await verifyUserReady(currentUserId);
+    if (!readyCheck.ready || readyCheck.template_count < 5) {
+      throw new Error(
+        `Template tidak lengkap. Tersimpan: ${readyCheck.template_count}/5. Silakan ulangi enrollment.`
+      );
+    }
+
+    // 4. VERIFIKASI AKHIR DENGAN IDENTIFICATION
     setHint("Memverifikasi kecocokan akhir...", "info");
     await sleep(1000);
 

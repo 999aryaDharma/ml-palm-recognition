@@ -20,8 +20,10 @@ class Settings(BaseSettings):
     min_template_per_user: int = 5
     top_k_templates: int = 3
 
-    class Config:
-        env_file = ".env"
+    model_config = {
+        "env_file": ".env",
+        "extra": "ignore"
+    }
 
 
 @lru_cache
