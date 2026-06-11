@@ -1,0 +1,253 @@
+/* ============================================================
+   css/ux.css — UX helpers (skeleton, animations)
+   Drop this file dan include di setiap halaman:
+     <link rel="stylesheet" href="css/ux.css">
+   Aman ditumpuk setelah components.css.
+   ============================================================ */
+
+/* ── Fade in ────────────────────────────────────────────── */
+@keyframes ux-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.ux-anim-fade-in {
+  animation: ux-fade-in 0.32s ease both;
+}
+
+/* ── Slide in (untuk entry baru di list) ───────────────── */
+@keyframes ux-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+    background-color: color-mix(in srgb, var(--color-matcha, #6b8e23) 12%, transparent);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+    background-color: transparent;
+  }
+}
+.ux-anim-slide-in {
+  animation: ux-slide-in 0.55s ease both;
+}
+
+/* ── Skeleton shimmer ──────────────────────────────────── */
+@keyframes ux-shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+.ux-skeleton {
+  display: block;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-coffee, #6b4f3a) 8%, transparent) 0%,
+    color-mix(in srgb, var(--color-coffee, #6b4f3a) 14%, transparent) 50%,
+    color-mix(in srgb, var(--color-coffee, #6b4f3a) 8%, transparent) 100%
+  );
+  background-size: 800px 100%;
+  animation: ux-shimmer 1.4s linear infinite;
+  border-radius: 8px;
+}
+.ux-skeleton--line {
+  height: 12px;
+}
+.ux-skeleton--avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+.ux-skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--color-border, #e5dccf);
+  background: var(--color-surface, #fff);
+  min-height: 140px;
+}
+.ux-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+/* ── Page step transitions ─────────────────────────────── */
+.ux-step {
+  animation: ux-fade-in 0.35s ease both;
+}
+
+/* ── Page transition ── */
+body.app-body {
+  opacity: 0;
+  transition: opacity 0.22s ease-in-out, transform 0.22s ease-in-out;
+  transform: translateY(4px);
+}
+body.app-body.ux-page-ready {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── Top bar loader ── */
+#ux-top-loader {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  background: var(--color-matcha, #8a9a5b);
+  z-index: 9999;
+  width: 0%;
+  transition: width 0.2s ease;
+  box-shadow: 0 0 8px var(--color-matcha, #8a9a5b);
+}
+
+/* ── Shimmer camera loading ── */
+.scanner--requesting-camera .scanner__placeholder {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-coffee, #6b4f3a) 2%, transparent) 0%,
+    color-mix(in srgb, var(--color-coffee, #6b4f3a) 8%, transparent) 50%,
+    color-mix(in srgb, var(--color-coffee, #6b4f3a) 2%, transparent) 100%
+  );
+  background-size: 800px 100%;
+  animation: ux-shimmer 1.4s linear infinite;
+}
+
+/* ── Scanner Pulse ── */
+@keyframes scanner-pulse-success {
+  0% {
+    box-shadow: 0 0 0 0 rgba(138, 154, 91, 0.4);
+    border-color: var(--color-matcha);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(138, 154, 91, 0);
+    border-color: var(--color-matcha);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(138, 154, 91, 0);
+    border-color: var(--color-matcha);
+  }
+}
+
+@keyframes scanner-pulse-error {
+  0% {
+    box-shadow: 0 0 0 0 rgba(217, 83, 79, 0.4);
+    border-color: var(--color-coral);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(217, 83, 79, 0);
+    border-color: var(--color-coral);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(217, 83, 79, 0);
+    border-color: var(--color-coral);
+  }
+}
+
+.scanner--identified .scanner__target {
+  animation: scanner-pulse-success 1.5s ease-out infinite;
+  color: var(--color-matcha) !important;
+}
+
+.scanner--unknown .scanner__target,
+.scanner--error .scanner__target {
+  animation: scanner-pulse-error 1.5s ease-out infinite;
+  color: var(--color-coral) !important;
+}
+
+/* ── Verification Steps ── */
+.vstep {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-xl);
+  border: 1px solid transparent;
+  transition: all 0.25s ease;
+}
+
+.vstep--pending {
+  color: var(--color-coffee-light);
+  opacity: 0.5;
+}
+
+.vstep--active {
+  background: var(--color-surface-warm);
+  border-color: var(--color-border);
+  color: var(--color-coffee);
+  font-weight: 500;
+  box-shadow: var(--shadow-sm);
+}
+
+.vstep--done {
+  color: var(--color-coffee);
+  border-color: transparent;
+}
+
+.vstep--error {
+  background: var(--color-coral-soft);
+  border-color: var(--color-coral);
+  color: var(--color-coral);
+  font-weight: 500;
+}
+
+.vstep__indicator {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: bold;
+  flex-shrink: 0;
+  background: var(--color-border);
+  color: var(--color-coffee-light);
+  transition: all 0.25s ease;
+}
+
+.vstep--active .vstep__indicator {
+  background: var(--color-coffee);
+  color: var(--color-surface);
+}
+
+.vstep--done .vstep__indicator {
+  background: var(--color-matcha-soft);
+  color: var(--color-matcha);
+}
+
+.vstep--error .vstep__indicator {
+  background: var(--color-coral);
+  color: var(--color-surface);
+}
+
+.vstep__label {
+  font-size: var(--text-sm);
+}
+
+/* ── Reduce motion respect ─────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .ux-anim-fade-in,
+  .ux-anim-slide-in,
+  .ux-step,
+  .ux-empty-state,
+  body.app-body {
+    animation: none !important;
+    transition: none !important;
+  }
+  .ux-skeleton {
+    animation: none !important;
+  }
+}

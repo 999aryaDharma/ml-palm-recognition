@@ -5,7 +5,16 @@ from fastapi.testclient import TestClient
 
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+parent_dir = os.path.dirname(backend_dir)
+# Remove parent_dir from sys.path if present to prevent it from shadowing backend packages (like ml)
+sys.path = [p for p in sys.path if p and os.path.abspath(p) != os.path.abspath(parent_dir)]
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
+# Clean cached 'ml' from sys.modules if it was loaded from the parent directory
+if "ml" in sys.modules:
+    del sys.modules["ml"]
 
 
 # ── ML Mocks (applied before app import) ─────────────────────────────────────
@@ -13,10 +22,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def _make_detector_mock():
     mock = MagicMock()
     # Returns a valid detection result — 21 dummy landmarks
-    lm = MagicMock()
-    lm.x = lm.y = lm.z = 0.5
-    lm.visibility = 1.0
-    mock.detect.return_value = {"landmarks": [lm] * 21, "handedness": "Right"}
+    landmarks = [
+        {"x": 0.5, "y": 0.5, "z": 0.5, "visibility": 1.0}
+        for _ in range(21)
+    ]
+    mock.detect.return_value = {"landmarks": landmarks, "handedness": "Right"}
     mock.model = MagicMock()   # non-None → model_loaded = True in health endpoint
     return mock
 

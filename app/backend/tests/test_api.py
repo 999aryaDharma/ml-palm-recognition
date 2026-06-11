@@ -118,7 +118,10 @@ class TestIdentification:
         # Either unknown or no_templates_enrolled error — both acceptable
         assert r.status_code in (200, 400)
         if r.status_code == 200:
-            assert r.json()["status"] == "unknown"
+            res = r.json()
+            assert res["status"] in ("unknown", "error")
+            if res["status"] == "error":
+                assert res["error_code"] == "no_templates_enrolled"
         else:
             assert r.json()["detail"]["error"] == "no_templates_enrolled"
 

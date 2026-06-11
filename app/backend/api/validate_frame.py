@@ -1,15 +1,13 @@
 """
-api/validate_frame.py — Lightweight quality gate check.
+api/validate_frame.py — Quality gate sebelum enrollment template disimpan.
 
-Endpoint ini menerima gambar telapak dan menjalankan detection + ROI pipeline,
-tapi TIDAK menyimpan apapun ke database. Hanya mengembalikan apakah frame
-memenuhi quality gate atau tidak.
+Pipeline HARUS identik dengan add_template:
+    parse image → hand detection → ROI extraction → embedding extraction
 
-Dipakai oleh frontend enrollment SEBELUM createUser() dipanggil,
-sehingga user tidak terbuat di backend dengan 0 template.
+Kalau lolos validate-frame, dijamin lolos add_template.
+Tidak menyimpan apapun ke database.
 
-GET  /validate-frame  — tidak ada (hanya POST)
-POST /validate-frame  — cek kualitas frame telapak
+POST /validate-frame  — cek kualitas frame telapak (full pipeline)
 """
 from fastapi import APIRouter, Request, UploadFile, File, HTTPException
 
@@ -27,16 +25,18 @@ async def validate_frame(
     """
     Validasi kualitas frame telapak tangan tanpa menyimpan apapun.
 
-    Menjalankan pipeline: parse image → hand detection → ROI extraction.
-    Tidak memanggil recognizer (tidak perlu embedding untuk validasi awal).
+    Menjalankan pipeline LENGKAP: parse → detection → ROI → embedding.
+    Pipeline IDENTIK dengan add_template, sehingga frame yang lolos
+    validasi ini PASTI bisa disimpan sebagai template (tidak ada false-positive).
 
     Response 200: frame valid, siap untuk enrollment
     Response 400: frame tidak valid dengan error code untuk hint UI
     """
-    settings = request.app.state.settings
-    detector = getattr(request.app.state, "detector", None)
+    settings   = request.app.state.settings
+    detector   = getattr(request.app.state, "detector",   None)
+    recognizer = getattr(request.app.state, "recognizer", None)
 
-    if detector is None:
+    if detector is None or recognizer is None:
         raise HTTPException(
             status_code=503,
             detail={
@@ -47,27 +47,35 @@ async def validate_frame(
 
     pil_image = await upload_to_pil(image, settings.max_upload_mb)
 
-    # Detection
+    # ── Stage 1: Hand detection ───────────────────────────────────────────────
     detection = detector.detect(pil_image)
     if detection is None:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "detection_failed",
-                "message": "Telapak belum terbaca. Pastikan tangan terlihat penuh dan menghadap kamera.",
-            },
-        )
+        return {
+            "status": "error",
+            "error": "detection_failed",
+            "message": "Telapak belum terbaca. Pastikan tangan terlihat penuh dan menghadap kamera.",
+        }
 
-    # ROI extraction
+    # ── Stage 2: ROI extraction ───────────────────────────────────────────────
     roi = extract_palm_roi(pil_image, detection["landmarks"])
     if roi is None:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "roi_extraction_failed",
-                "message": "Area telapak gagal diekstrak. Posisikan telapak di tengah frame.",
-            },
-        )
+        return {
+            "status": "error",
+            "error": "roi_extraction_failed",
+            "message": "Area telapak gagal diekstrak. Posisikan telapak di tengah frame.",
+        }
+
+    # ── Stage 3: Embedding extraction ────────────────────────────────────────
+    # KRITIS: Harus identik dengan add_template agar tidak ada false-positive.
+    # Tanpa pengecekan ini, blob yang lolos validate bisa gagal di add_template
+    # karena gambar blur atau landmark tidak cukup jelas untuk model.
+    embedding = recognizer.extract_embedding(roi)
+    if embedding is None:
+        return {
+            "status": "error",
+            "error": "image_too_blurry",
+            "message": "Gambar terlalu blur atau tangan kurang jelas. Tahan tangan diam sebentar.",
+        }
 
     return {
         "valid": True,

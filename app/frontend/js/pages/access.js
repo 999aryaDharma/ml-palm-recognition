@@ -1,6 +1,12 @@
 // ============================================================
-// js/pages/access.js — Access Control demo
-// Fixed: door animation classes, access log render, auth panel, terminal
+// js/pages/access.js — Access Control (UX-improved)
+//
+// Perubahan UX:
+// • Skeleton row saat memuat daftar otorisasi (bukan teks "Memuat...")
+// • Toggle otorisasi pakai feedback halus (label fade, opsional revert)
+// • Access log entry baru → animasi slide-in + highlight sebentar
+// • Door panel transition lebih jelas
+// • Error fetch authorized → tombol "Coba lagi" inline
 // ============================================================
 
 import { mountNavbar } from "../components/navbar.js";
@@ -9,21 +15,19 @@ import { DiagnosticTerminal } from "../components/terminal.js";
 import { toast } from "../components/toast.js";
 import { apiFetch } from "../api/client.js";
 import { getUsers } from "../api/users.js";
+import { renderSkeleton, animateIn, renderEmptyState } from "../ux.js";
 
-// ── State ──────────────────────────────────────────────────
 let scanner = null;
 let terminal = null;
 let isProcessing = false;
+let scannerStarted = false;
 
-// ── DOM ────────────────────────────────────────────────────
 let scannerContainer, terminalCard, doorPanelInner, doorStatus, doorIcon;
 let authorizedList, btnStartScan, accessLog, btnRefreshAuth;
 
-// ── Init ───────────────────────────────────────────────────
 async function init() {
   mountNavbar();
 
-  // Retrieve elements inside init
   scannerContainer = document.getElementById("scanner-container");
   terminalCard = document.querySelector(".terminal-card");
   doorPanelInner = document.getElementById("door-panel-inner");
@@ -40,12 +44,8 @@ async function init() {
   }
 
   terminal = new DiagnosticTerminal(terminalCard);
-
-  // Listen for terminal events
   document.addEventListener("toast", (e) => {
-    if (e.detail && toast[e.detail.type]) {
-      toast[e.detail.type](e.detail.message);
-    }
+    if (e.detail && toast[e.detail.type]) toast[e.detail.type](e.detail.message);
   });
 
   terminal.addLog("SYSTEM", "Access control system initialized.");
@@ -71,34 +71,67 @@ async function init() {
   });
 
   btnStartScan?.addEventListener("click", startScanner);
-  btnRefreshAuth?.addEventListener("click", () => loadAuthorizedPanel());
+  btnRefreshAuth?.addEventListener("click", () => loadAuthorizedPanel(true));
 
   loadAuthorizedPanel();
 
   window.addEventListener("beforeunload", () => scanner?.stop());
+  
+  let wasScanning = false;
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) scanner?.stop();
+    if (document.hidden) {
+      wasScanning = scannerStarted;
+      if (scannerStarted) {
+        scanner?.stop();
+        scannerStarted = false;
+      }
+    } else {
+      if (wasScanning) {
+        startScanner();
+      }
+    }
+  });
+
+  // Reactive backend offline protection
+  document.addEventListener("backend-status-change", (e) => {
+    const online = e.detail.online;
+    if (online) {
+      if (btnStartScan && btnStartScan.disabled && btnStartScan.innerHTML.includes("Offline")) {
+        enableStartButton();
+      }
+    } else {
+      if (btnStartScan) {
+        btnStartScan.disabled = true;
+        btnStartScan.innerHTML = "⚠️ Server Offline";
+      }
+    }
   });
 }
 
-// ── Scanner ────────────────────────────────────────────────
 async function startScanner() {
+  if (scannerStarted) return;
+  scannerStarted = true;
   if (btnStartScan) {
     btnStartScan.disabled = true;
     btnStartScan.innerHTML = `<span class="spinner spinner--sm"></span> Scanning…`;
   }
   terminal.addLog("SYSTEM", "Access scanner activated.");
-  await scanner.start();
-}
-
-function enableStartButton() {
-  if (btnStartScan) {
-    btnStartScan.disabled = false;
-    btnStartScan.textContent = "🖐 Mulai Scan Akses";
+  const ok = await scanner.start();
+  if (!ok) {
+    scannerStarted = false;
+    enableStartButton("Coba Aktifkan Scanner Lagi");
+    toast.error("Gagal menyalakan kamera. Periksa izin browser.");
   }
 }
 
-// ── Identification callback ────────────────────────────────
+function enableStartButton(label = "🖐 Mulai Scan Akses") {
+  scannerStarted = false;
+  if (btnStartScan) {
+    btnStartScan.disabled = false;
+    btnStartScan.textContent = label;
+  }
+}
+
 async function handleIdentified(user, score, latency) {
   if (isProcessing) return;
   isProcessing = true;
@@ -109,7 +142,6 @@ async function handleIdentified(user, score, latency) {
   );
 
   try {
-    // Fetch current authorization list
     const authList = await apiFetch("/demos/access/authorized");
     const record = authList.find((r) => r.user_id === user.id);
     const authorized = record?.authorized ?? false;
@@ -125,7 +157,6 @@ async function handleIdentified(user, score, latency) {
       triggerAccessDenied(user.name, score, "not_authorized");
     }
 
-    // Log to backend (fire and forget)
     apiFetch("/demo-logs", {
       method: "POST",
       body: JSON.stringify({
@@ -140,15 +171,12 @@ async function handleIdentified(user, score, latency) {
     }).catch(() => {});
 
     addAccessLogEntry(user.name, authorized, score);
-
-    // P0 UX: Pause scanner while door is open
     scanner.pause();
   } catch (err) {
     terminal.addLog("ERROR", err.message || "Gagal memeriksa otorisasi");
     toast.error("Gagal memeriksa otorisasi.");
   } finally {
     isProcessing = false;
-    // Reset door after delay, then re-enable scan
     setTimeout(() => {
       resetDoor();
       scanner.resume();
@@ -157,7 +185,7 @@ async function handleIdentified(user, score, latency) {
   }
 }
 
-// ── Door animation ─────────────────────────────────────────
+// ── Door ───────────────────────────────────────────────────
 function triggerAccessGranted(user, score) {
   if (doorIcon) doorIcon.textContent = "🔓";
   if (doorStatus) {
@@ -166,6 +194,7 @@ function triggerAccessGranted(user, score) {
   }
   doorPanelInner?.classList.add("door-panel--granted");
   doorPanelInner?.classList.remove("door-panel--denied");
+  animateIn(doorPanelInner, "fade");
   toast.success(`Akses diberikan: ${user.name}`, "Access Granted");
 }
 
@@ -180,6 +209,7 @@ function triggerAccessDenied(name, score, reason) {
   }
   doorPanelInner?.classList.add("door-panel--denied");
   doorPanelInner?.classList.remove("door-panel--granted");
+  animateIn(doorPanelInner, "fade");
   toast.error(
     reason === "not_authorized"
       ? `Akses ditolak: ${name} tidak diotorisasi.`
@@ -197,10 +227,12 @@ function resetDoor() {
   doorPanelInner?.classList.remove("door-panel--granted", "door-panel--denied");
 }
 
-// ── Authorized users panel ─────────────────────────────────
-async function loadAuthorizedPanel() {
+// ── Authorized panel ───────────────────────────────────────
+async function loadAuthorizedPanel(isRefresh = false) {
   if (!authorizedList) return;
-  authorizedList.innerHTML = `<p class="text-xs" style="color:var(--color-coffee-light)">Memuat daftar...</p>`;
+
+  // Skeleton state
+  renderSkeleton(authorizedList, 4, "row");
 
   try {
     const [users, authData] = await Promise.all([
@@ -208,22 +240,24 @@ async function loadAuthorizedPanel() {
       apiFetch("/demos/access/authorized"),
     ]);
 
-    // Build map: user_id → authorized bool
     const authMap = {};
     for (const a of authData) authMap[a.user_id] = a.authorized;
 
     if (users.length === 0) {
-      authorizedList.innerHTML = `
-        <p class="text-xs" style="color:var(--color-coffee-light)">
-          Belum ada pengguna. <a href="../enroll.html" style="color:var(--color-matcha)">Daftarkan pengguna</a> terlebih dahulu.
-        </p>`;
+      renderEmptyState(authorizedList, {
+        variant: "empty",
+        title: "Belum ada pengguna",
+        message: "Daftarkan pengguna baru terlebih dahulu.",
+        actionLabel: "Buka halaman Enroll",
+        onAction: () => window.location.assign("../enroll.html"),
+      });
       return;
     }
 
     authorizedList.innerHTML = users
       .map(
         (u) => `
-        <div class="authorized-row">
+        <div class="authorized-row ux-anim-fade-in" data-uid="${u.id}">
           <div style="display:flex;align-items:center;gap:8px">
             <div style="width:28px;height:28px;border-radius:6px;background:var(--color-coffee);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700;flex-shrink:0">
               ${escHtml(u.name[0])}
@@ -231,13 +265,10 @@ async function loadAuthorizedPanel() {
             <span style="font-size:13px;font-weight:500">${escHtml(u.name)}</span>
           </div>
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
-            <input
-              type="checkbox"
-              data-uid="${u.id}"
+            <input type="checkbox" data-uid="${u.id}"
               ${authMap[u.id] ? "checked" : ""}
-              style="width:16px;height:16px;accent-color:var(--color-matcha);cursor:pointer"
-            />
-            <span class="auth-label" style="font-size:11px;color:var(--color-coffee-light)">
+              style="width:16px;height:16px;accent-color:var(--color-matcha);cursor:pointer"/>
+            <span class="auth-label" style="font-size:11px;color:var(--color-coffee-light);transition:color .2s ease">
               ${authMap[u.id] ? "Diotorisasi" : "Ditolak"}
             </span>
           </label>
@@ -246,41 +277,52 @@ async function loadAuthorizedPanel() {
       )
       .join("");
 
-    // Attach toggle handlers
     authorizedList.querySelectorAll("input[type=checkbox]").forEach((cb) => {
       cb.addEventListener("change", async () => {
         const uid = Number(cb.dataset.uid);
         const auth = cb.checked;
         const label = cb.nextElementSibling;
         cb.disabled = true;
+        // Optimistic label update
+        if (label) {
+          label.textContent = auth ? "Diotorisasi" : "Ditolak";
+          label.style.color = "var(--color-coffee)";
+        }
         try {
           await apiFetch(`/demos/access/authorized/${uid}?authorized=${auth}`, {
             method: "PUT",
           });
-          if (label) label.textContent = auth ? "Diotorisasi" : "Ditolak";
           terminal.addLog(
             "ADMIN",
             `User #${uid} otorisasi → ${auth ? "GRANTED" : "DENIED"}`,
           );
           toast.info(`Otorisasi user #${uid} diperbarui.`);
         } catch {
-          cb.checked = !auth; // revert on failure
+          cb.checked = !auth;
+          if (label) label.textContent = !auth ? "Diotorisasi" : "Ditolak";
           toast.error("Gagal memperbarui otorisasi.");
         } finally {
           cb.disabled = false;
+          if (label) setTimeout(() => (label.style.color = ""), 400);
         }
       });
     });
+
+    if (isRefresh) toast.info("Daftar otorisasi diperbarui.");
   } catch (err) {
-    authorizedList.innerHTML = `<p class="text-xs" style="color:var(--color-coral)">Gagal memuat daftar: ${escHtml(err.message)}</p>`;
+    renderEmptyState(authorizedList, {
+      variant: "error",
+      title: "Gagal memuat daftar",
+      message: err.message || "Periksa koneksi backend.",
+      actionLabel: "Coba lagi",
+      onAction: () => loadAuthorizedPanel(true),
+    });
   }
 }
 
 // ── Access log ─────────────────────────────────────────────
 function addAccessLogEntry(name, granted, score) {
   if (!accessLog) return;
-
-  // Remove placeholder text on first entry
   const placeholder = accessLog.querySelector("p");
   if (placeholder) placeholder.remove();
 
@@ -298,20 +340,14 @@ function addAccessLogEntry(name, granted, score) {
     <span style="color:var(--color-coffee-light);font-size:10px">${new Date().toLocaleTimeString("id-ID")}</span>
   `;
   accessLog.insertBefore(entry, accessLog.firstChild);
+  animateIn(entry, "slide");
 }
 
-// ── Escape helper ──────────────────────────────────────────
 function escHtml(s) {
   return String(s).replace(
     /[&<>"']/g,
     (c) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#039;",
-      })[c],
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c],
   );
 }
 

@@ -222,7 +222,7 @@
   overflow: hidden;
   border-radius: var(--radius-2xl);
   background: #1c1612;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 3 / 4;
   box-shadow: var(--shadow-soft);
   width: 100%;
 }

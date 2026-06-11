@@ -153,6 +153,18 @@ export class PalmScanner {
     try {
       const result = await identify(blob);
 
+      if (result.status === "error") {
+        const fakeErr = new Error(result.message);
+        fakeErr.status = 400;
+        fakeErr.detail = { 
+          error: result.error_code, 
+          message: result.message, 
+          bbox: result.bbox, 
+          landmarks: result.landmarks 
+        };
+        throw fakeErr;
+      }
+
       // Immediate feedback: Update bounding box as soon as we have detection data
       if (result.bbox) {
         this.boundingBox.update({
@@ -266,16 +278,46 @@ export class PalmScanner {
         this.boundingBox.searching();
       }
 
+      // Handle fatal state errors that prevent identification entirely
+      if (
+        errorDetail.error === "no_templates_enrolled" ||
+        errorDetail.error === "not_enough_templates"
+      ) {
+        this._webcam.stopAutoCapture();
+        this._setState("error");
+        this._setHint("⚠️ Sistem belum siap", "error");
+        this._showResult({
+          type: "error",
+          title: "Belum Ada Data",
+          detail: errorDetail.message || "Lakukan pendaftaran (enrollment) terlebih dahulu.",
+          primaryActionLabel: "Tutup",
+        });
+        this.logFn("ERROR", errorDetail.message);
+        this.onError(err);
+        return;
+      }
+
+      // Handle unknown/server errors fatally
+      if (!err.status || err.status !== 400 || !errorDetail.error) {
+        this._webcam.stopAutoCapture();
+        this._setState("error");
+        this._setHint("⚠️ Kesalahan Sistem", "error");
+        this._showResult({
+          type: "error",
+          title: "Kesalahan Sistem",
+          detail: errorDetail.error || err.message || "Terjadi kesalahan pada server.",
+          primaryActionLabel: "Tutup",
+        });
+        this.logFn("ERROR", errorDetail.error || err.message || "Unknown error");
+        console.error("[PalmScanner] Unhandled Error:", err);
+        this.onError(err);
+        return;
+      }
+
       const hint = QUALITY_HINTS[errorDetail.error] || "⚠️ Coba scan ulang";
       this._setHint(hint, errorDetail.error ? "" : "error");
 
-      // ... rest same
-      if (err.status !== 400 || !errorDetail.error) {
-        this.logFn("ERROR", errorDetail.error || err.message || "Unknown error");
-        console.error("[PalmScanner] Unhandled Error:", err);
-      } else {
-        this.logFn("QUALITY_GATE", errorDetail.message || hint);
-      }
+      this.logFn("QUALITY_GATE", errorDetail.message || hint);
 
       this._setState("scanning");
       this.onError(err);

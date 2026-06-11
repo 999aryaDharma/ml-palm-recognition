@@ -12,7 +12,8 @@ class IdentifyResponse(BaseModel):
     user: Optional[IdentifiedUser] = None
     score: float
     latency_ms: int
-    error_code: Optional[str] = None  # populated when status is "error" (surfaced as HTTP 400)
+    error_code: Optional[str] = None
+    message: Optional[str] = None
     bbox: Optional[Dict[str, float]] = None
     landmarks: Optional[List[Dict[str, float]]] = None
     quality_score: Optional[float] = None

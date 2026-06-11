@@ -26,16 +26,16 @@ async def identify_palm(
     service = IdentificationService(request.app.state, db)
     result, latency_ms = service.identify_palm(pil_image)
 
-    # ML / quality failures surface as structured 400 errors
+    # ML / quality failures surface as structured error responses (HTTP 200) to prevent browser console spam
     if result["status"] == "error":
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": result.get("error_code", "detection_failed"),
-                "message": _error_message(result.get("error_code", "detection_failed")),
-                "bbox": result.get("bbox"),
-                "landmarks": result.get("landmarks"),
-            },
+        return IdentifyResponse(
+            status="error",
+            error_code=result.get("error_code", "detection_failed"),
+            message=_error_message(result.get("error_code", "detection_failed")),
+            bbox=result.get("bbox"),
+            landmarks=result.get("landmarks"),
+            score=0.0,
+            latency_ms=latency_ms
         )
 
     user = None

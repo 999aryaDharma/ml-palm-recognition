@@ -152,16 +152,24 @@ async def add_template(
     template_repo = TemplateRepository(db)
     template = template_repo.create(user_id, embedding, quality_score)
 
-    # ── Refresh cache so new template is available for matching ───────────────
+    # ── Refresh cache dengan session BARU (bukan session request) ─────────────────
+    # Session request (db) masih hold transaction yang baru commit.
+    # Menggunakan session yang sama untuk cache.refresh bisa menyebabkan
+    # SQLite lock, terutama saat 5 template diupload berurutan.
     cache = getattr(request.app.state, "cache", None)
     if cache is not None:
         try:
-            cache.refresh(db)
+            from db.database import SessionLocal
+            fresh_db = SessionLocal()
+            try:
+                cache.refresh(fresh_db)
+            finally:
+                fresh_db.close()
         except Exception as exc:
-            # Log error but don't fail the request – template is already in DB
             import logging
-            logger = logging.getLogger("palm-api")
-            logger.error("Failed to refresh cache after template upload: %s", exc)
+            logging.getLogger("palm-api").error(
+                "Cache refresh failed after template upload: %s", exc
+            )
 
     return TemplateCreateResponse(
         template_id=template.id,

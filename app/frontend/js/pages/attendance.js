@@ -1,5 +1,12 @@
 // ============================================================
-// js/pages/attendance.js — Palm Attendance demo logic
+// js/pages/attendance.js — Palm Attendance (UX-improved)
+//
+// Perubahan UX:
+// • Entry baru di list muncul with slide-in animation (bukan
+//   tiba-tiba muncul) → user langsung tahu apa yang baru ditambah.
+// • Counter berdetak (count-up) saat naik.
+// • Error retry: kalau submit gagal, kasih modal "Coba lagi"
+//   bukan diam-diam reset scanner.
 // ============================================================
 
 import { mountNavbar } from "../components/navbar.js";
@@ -8,26 +15,23 @@ import { DiagnosticTerminal } from "../components/terminal.js";
 import { showModal } from "../components/modal.js";
 import { toast } from "../components/toast.js";
 import { apiFetch } from "../api/client.js";
+import { animateIn } from "../ux.js";
 
-// ── State ──────────────────────────────────────────────────
 let scanner = null;
 let terminal = null;
-let currentMode = "checkin"; // "checkin" | "checkout"
+let currentMode = "checkin";
 let isProcessing = false;
 let scannerStarted = false;
 let countCheckin = 0;
 let countCheckout = 0;
 
-// ── DOM ────────────────────────────────────────────────────
 let btnCheckin, btnCheckout, btnStartScan, btnStopScan;
 let terminalCard, scannerContainer, attendanceList;
 let modeLabelEl, countCheckinEl, countCheckoutEl;
 
-// ── Init ───────────────────────────────────────────────────
 async function init() {
   mountNavbar();
 
-  // Retrieve elements inside init
   btnCheckin = document.getElementById("btn-mode-checkin");
   btnCheckout = document.getElementById("btn-mode-checkout");
   btnStartScan = document.getElementById("btn-start-scan");
@@ -45,29 +49,19 @@ async function init() {
   }
 
   terminal = new DiagnosticTerminal(terminalCard);
-
-  // Listen for terminal events (like copy log)
   document.addEventListener("toast", (e) => {
-    if (e.detail && toast[e.detail.type]) {
-      toast[e.detail.type](e.detail.message);
-    }
+    if (e.detail && toast[e.detail.type]) toast[e.detail.type](e.detail.message);
   });
 
   terminal.addLog("SYSTEM", "Attendance system initialized.");
-  terminal.addLog(
-    "INSTRUCTION",
-    "Langkah 1: Pilih mode Check-in atau Check-out.",
-  );
+  terminal.addLog("INSTRUCTION", "Langkah 1: Pilih mode Check-in atau Check-out.");
   terminal.addLog("INSTRUCTION", "Langkah 2: Klik 'Mulai Scan Absensi'.");
 
-  // Load from localStorage
   loadAttendanceFromStorage();
 
-  // Mode buttons
   btnCheckin?.addEventListener("click", () => setMode("checkin"));
   btnCheckout?.addEventListener("click", () => setMode("checkout"));
 
-  // Scanner
   scanner = new PalmScanner({
     containerEl: scannerContainer,
     videoEl: document.getElementById("scanner-video"),
@@ -90,7 +84,6 @@ async function init() {
   });
 
   btnStartScan?.addEventListener("click", startScanner);
-
   btnStopScan?.addEventListener("click", () => {
     scanner?.stop();
     scannerStarted = false;
@@ -100,19 +93,38 @@ async function init() {
   });
 
   window.addEventListener("beforeunload", () => scanner?.stop());
+  
+  let wasScanning = false;
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) scanner?.stop();
+    if (document.hidden) {
+      wasScanning = scannerStarted;
+      if (scannerStarted) {
+        scanner?.stop();
+        scannerStarted = false;
+      }
+    } else {
+      if (wasScanning) {
+        startScanner();
+      }
+    }
+  });
+
+  // Reactive backend offline protection
+  document.addEventListener("backend-status-change", (e) => {
+    const online = e.detail.online;
+    if (!online) {
+      terminal?.addLog("WARNING", "Koneksi ke backend terputus. Kamera tetap dapat dinyalakan.");
+    }
   });
 }
 
 function loadAttendanceFromStorage() {
   const data = localStorage.getItem("palmid_attendance_logs");
   if (!data) return;
-
   try {
     const logs = JSON.parse(data);
     logs.forEach((entry) => {
-      addAttendanceEntryToDOM(entry.user, entry.mode, entry.time);
+      addAttendanceEntryToDOM(entry.user, entry.mode, entry.time, /*animate*/ false);
       if (entry.mode === "checkin") countCheckin++;
       else countCheckout++;
     });
@@ -126,26 +138,29 @@ function saveAttendanceToStorage(user, mode, time) {
   const data = localStorage.getItem("palmid_attendance_logs");
   let logs = [];
   if (data) {
-    try {
-      logs = JSON.parse(data);
-    } catch (e) {}
+    try { logs = JSON.parse(data); } catch (e) {}
   }
   logs.unshift({ user, mode, time });
-  // Keep last 20
   if (logs.length > 20) logs = logs.slice(0, 20);
   localStorage.setItem("palmid_attendance_logs", JSON.stringify(logs));
 }
 
 function updateCounters() {
-  if (countCheckinEl) countCheckinEl.textContent = String(countCheckin);
-  if (countCheckoutEl) countCheckoutEl.textContent = String(countCheckout);
+  if (countCheckinEl) bumpCounter(countCheckinEl, countCheckin);
+  if (countCheckoutEl) bumpCounter(countCheckoutEl, countCheckout);
 }
 
-// ── Mode toggle ────────────────────────────────────────────
+function bumpCounter(el, value) {
+  const current = parseInt(el.textContent, 10) || 0;
+  if (current === value) return;
+  el.textContent = String(value);
+  el.style.transition = "transform .25s ease";
+  el.style.transform = "scale(1.18)";
+  setTimeout(() => (el.style.transform = "scale(1)"), 180);
+}
+
 function setMode(mode) {
   currentMode = mode;
-
-  // Accessibility: aria-pressed for semantic state
   btnCheckin?.setAttribute("aria-pressed", String(mode === "checkin"));
   btnCheckout?.setAttribute("aria-pressed", String(mode === "checkout"));
 
@@ -161,7 +176,6 @@ function setMode(mode) {
   terminal.addLog("SYSTEM", `Mode: ${mode.toUpperCase()} aktif.`);
 }
 
-// ── Scanner ────────────────────────────────────────────────
 async function startScanner() {
   if (scannerStarted) return;
   scannerStarted = true;
@@ -176,9 +190,9 @@ async function startScanner() {
   if (!ok) {
     scannerStarted = false;
     enableStartButton("Coba Aktifkan Scanner Lagi");
+    toast.error("Gagal menyalakan kamera. Periksa izin browser.");
     return;
   }
-
   if (btnStopScan) btnStopScan.hidden = false;
 }
 
@@ -189,7 +203,6 @@ function enableStartButton(label = "🖐 Mulai Scan Absensi") {
   }
 }
 
-// ── Identification callback ────────────────────────────────
 async function handleIdentified(user, score, latency) {
   if (isProcessing) return;
 
@@ -197,8 +210,6 @@ async function handleIdentified(user, score, latency) {
     "MATCHING",
     `${user.name} — score ${score.toFixed(4)} — ${latency}ms`,
   );
-
-  // P0 UX FIX: Explicitly pause scanner during modal
   scanner.pause();
 
   const modeText = currentMode === "checkin" ? "Check-in" : "Check-out";
@@ -233,7 +244,6 @@ async function handleIdentified(user, score, latency) {
   });
 }
 
-// ── Submit to backend ──────────────────────────────────────
 async function submitAttendance(user, score) {
   isProcessing = true;
   try {
@@ -259,31 +269,39 @@ async function submitAttendance(user, score) {
       "Absensi Tercatat",
     );
 
-    // Update counters
-    if (currentMode === "checkin") {
-      countCheckin++;
-    } else {
-      countCheckout++;
-    }
+    if (currentMode === "checkin") countCheckin++;
+    else countCheckout++;
     updateCounters();
 
-    addAttendanceEntryToDOM(user, currentMode, timeStr);
+    addAttendanceEntryToDOM(user, currentMode, timeStr, true);
     saveAttendanceToStorage(user, currentMode, timeStr);
   } catch (err) {
     terminal.addLog("ERROR", err.message || "Gagal mencatat absensi");
-    toast.error("Gagal mencatat kehadiran. Coba lagi.");
+    showModal({
+      title: "Gagal Mencatat Absensi",
+      message: `Sistem tidak bisa menyimpan absensi.<br><br><span class="text-xs" style="color:var(--color-coffee-light)">${escHtml(err.message || "Periksa koneksi")}</span>`,
+      icon: "error",
+      confirmLabel: "Coba Lagi",
+      confirmVariant: "primary",
+      onConfirm: () => submitAttendance(user, score),
+      onCancel: () => {
+        isProcessing = false;
+        scanner.resume();
+        enableStartButton();
+      },
+    });
+    return;
   } finally {
-    isProcessing = false;
-    scanner.resume();
-    enableStartButton();
+    if (isProcessing) {
+      isProcessing = false;
+      scanner.resume();
+      enableStartButton();
+    }
   }
 }
 
-// ── Render attendance entry in list ───────────────────────
-function addAttendanceEntryToDOM(user, mode, time) {
+function addAttendanceEntryToDOM(user, mode, time, animate = true) {
   if (!attendanceList) return;
-
-  // Remove empty-state placeholder on first real entry
   const placeholder = document.getElementById("attendance-empty");
   if (placeholder) placeholder.remove();
 
@@ -296,22 +314,15 @@ function addAttendanceEntryToDOM(user, mode, time) {
     <span class="attendance-name">${escHtml(user.name)}</span>
     <span class="attendance-time">${time}</span>
   `;
-  // Newest entry at top
   attendanceList.insertBefore(entry, attendanceList.firstChild);
+  if (animate) animateIn(entry, "slide");
 }
 
-// ── Escape helper ──────────────────────────────────────────
 function escHtml(s) {
   return String(s).replace(
     /[&<>"']/g,
     (c) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#039;",
-      })[c],
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c],
   );
 }
 

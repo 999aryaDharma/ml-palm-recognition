@@ -1,5 +1,13 @@
 // ============================================================
-// js/pages/payment.js — Palm Payment demo logic
+// js/pages/payment.js — Palm Payment (UX-improved)
+//
+// Perubahan UX:
+// • Tidak ada window.location.reload() di tombol "Selesai".
+//   Selesai → reset state in-place, scanner siap pakai lagi
+//   tanpa kehilangan terminal log.
+// • Error pembayaran kasih opsi "Coba lagi" jelas, bukan
+//   diam-diam resume scanner.
+// • Receipt muncul dengan animasi smooth.
 // ============================================================
 
 import { mountNavbar } from "../components/navbar.js";
@@ -8,9 +16,9 @@ import { DiagnosticTerminal } from "../components/terminal.js";
 import { paymentPay } from "../api/demos.js";
 import { showModal } from "../components/modal.js";
 import { toast } from "../components/toast.js";
-import { formatRupiah, logTimestamp, generateTxnId } from "../utils.js";
+import { formatRupiah, generateTxnId } from "../utils.js";
+import { animateIn, fadeSwap } from "../ux.js";
 
-// ── Utilities ──────────────────────────────────────────────
 function escapeHtml(text) {
   const map = {
     "&": "&amp;",
@@ -22,25 +30,20 @@ function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (c) => map[c]);
 }
 
-// ── Constants ──────────────────────────────────────────────
 const MERCHANT_NAME = "Toko Maju Jaya";
 const ORDER_TOTAL = 127500;
 
-// ── State ──────────────────────────────────────────────────
 let scanner = null;
 let terminal = null;
 let isPaymentProcessing = false;
 let scannerStarted = false;
 
-// ── DOM ────────────────────────────────────────────────────
 let btnStartPayment, btnStopPayment, terminalCard, scannerContainer;
 let checkoutPanel, receiptPanel;
 
-// ── Initialization ─────────────────────────────────────────
 async function init() {
   mountNavbar();
 
-  // Retrieve elements inside init
   btnStartPayment = document.getElementById("btn-start-payment");
   btnStopPayment = document.getElementById("btn-stop-payment");
   terminalCard = document.querySelector(".terminal-card");
@@ -55,7 +58,6 @@ async function init() {
 
   terminal = new DiagnosticTerminal(terminalCard);
 
-  // Listen for terminal events (like copy log)
   document.addEventListener("toast", (e) => {
     if (e.detail && toast[e.detail.type]) {
       toast[e.detail.type](e.detail.message);
@@ -68,7 +70,6 @@ async function init() {
     "Langkah 1: Klik tombol 'Bayar dengan Telapak'.",
   );
 
-  // Build PalmScanner
   scanner = new PalmScanner({
     containerEl: scannerContainer,
     videoEl: document.getElementById("scanner-video"),
@@ -87,51 +88,66 @@ async function init() {
     pauseOnUnknown: true,
   });
 
-  btnStartPayment.addEventListener("click", async () => {
-    if (scannerStarted) return;
+  btnStartPayment.addEventListener("click", startPayment);
+  btnStopPayment?.addEventListener("click", stopPayment);
 
-    try {
-      scannerStarted = true;
-      setPaymentButtonLoading();
-
-      terminal.addLog(
-        "SYSTEM",
-        "Payment mode activated. Waiting for palm scan...",
-      );
-      terminal.addLog(
-        "INSTRUCTION",
-        "Langkah 2: Hadapkan telapak tangan ke kamera.",
-      );
-
-      const ok = await scanner.start();
-      if (!ok) {
-        throw new Error("Failed to start scanner");
+  window.addEventListener("beforeunload", () => scanner?.stop());
+  
+  let wasScanning = false;
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      wasScanning = scannerStarted;
+      if (scannerStarted) {
+        scanner?.stop();
+        scannerStarted = false;
       }
-
-      if (btnStopPayment) btnStopPayment.hidden = false;
-    } catch (err) {
-      console.error("[Payment] Error starting scanner:", err);
-      scannerStarted = false;
-      resetPaymentButton("Coba Aktifkan Scanner Lagi");
-      terminal.addLog("ERROR", err.message || "Failed to start camera");
+    } else {
+      if (wasScanning) {
+        startPayment();
+      }
     }
   });
 
-  btnStopPayment?.addEventListener("click", () => {
-    scanner?.stop();
-    scannerStarted = false;
-    if (btnStopPayment) btnStopPayment.hidden = true;
-    resetPaymentButton();
-    terminal.addLog("SYSTEM", "Payment scanner stopped by user.");
-  });
-
-  // Cleanup on page leave
-  window.addEventListener("beforeunload", () => scanner?.stop());
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) scanner?.stop();
+  // Reactive backend offline protection
+  document.addEventListener("backend-status-change", (e) => {
+    const online = e.detail.online;
+    if (!online) {
+      terminal?.addLog("WARNING", "Koneksi ke backend terputus. Kamera tetap dapat dinyalakan.");
+    }
   });
 
   terminal.addLog("SYSTEM", "Ready to process payment.");
+}
+
+async function startPayment() {
+  if (scannerStarted) return;
+
+  try {
+    scannerStarted = true;
+    setPaymentButtonLoading();
+
+    terminal.addLog("SYSTEM", "Payment mode activated. Waiting for palm scan...");
+    terminal.addLog("INSTRUCTION", "Langkah 2: Hadapkan telapak tangan ke kamera.");
+
+    const ok = await scanner.start();
+    if (!ok) throw new Error("Gagal mengaktifkan kamera");
+
+    if (btnStopPayment) btnStopPayment.hidden = false;
+  } catch (err) {
+    console.error("[Payment] Error starting scanner:", err);
+    scannerStarted = false;
+    resetPaymentButton("Coba Aktifkan Scanner Lagi");
+    terminal.addLog("ERROR", err.message || "Failed to start camera");
+    toast.error("Tidak bisa menyalakan kamera. Periksa izin browser.");
+  }
+}
+
+function stopPayment() {
+  scanner?.stop();
+  scannerStarted = false;
+  if (btnStopPayment) btnStopPayment.hidden = true;
+  resetPaymentButton();
+  terminal.addLog("SYSTEM", "Payment scanner stopped by user.");
 }
 
 function setPaymentButtonLoading() {
@@ -144,7 +160,6 @@ function resetPaymentButton(label = "Bayar dengan Telapak") {
   btnStartPayment.innerHTML = `💳 ${label}`;
 }
 
-// ── Handle identification ──────────────────────────────────
 async function handleIdentified(user, score, latency) {
   if (isPaymentProcessing) return;
 
@@ -153,7 +168,6 @@ async function handleIdentified(user, score, latency) {
     `User ${escapeHtml(user.name)} matched — score ${score.toFixed(4)}`,
   );
 
-  // P0 UX FIX: Explicitly pause scanner before modal
   scanner.pause();
 
   showModal({
@@ -172,8 +186,8 @@ async function handleIdentified(user, score, latency) {
         </div>
       </div>
     `,
-    icon: "creditCard", // Use SVG icon key
-    initialFocus: "cancel", // P1 UX FIX: Safe focus for financial action
+    icon: "creditCard",
+    initialFocus: "cancel",
     confirmLabel: "Konfirmasi & Bayar",
     confirmVariant: "success",
     onConfirm: () => processPayment(user, score),
@@ -184,7 +198,6 @@ async function handleIdentified(user, score, latency) {
   });
 }
 
-// ── Process payment ────────────────────────────────────────
 async function processPayment(user, score) {
   isPaymentProcessing = true;
   terminal.addLog(
@@ -201,38 +214,51 @@ async function processPayment(user, score) {
         (result.transaction_id || "TXN-" + Date.now()),
     );
 
-    // Stop and hide scanner
     scanner?.stop();
-    if (scannerContainer) scannerContainer.style.display = "none";
-    if (btnStartPayment) btnStartPayment.style.display = "none";
-    if (btnStopPayment) btnStopPayment.style.display = "none";
+    scannerStarted = false;
+    if (btnStopPayment) btnStopPayment.hidden = true;
 
-    checkoutPanel.classList.add("hidden");
+    // Fade swap: checkout panel keluar, receipt masuk
+    if (checkoutPanel) {
+      checkoutPanel.classList.add("hidden");
+    }
     showReceipt(user, result, score);
     toast.success("Pembayaran berhasil diproses.", "Sukses");
   } catch (err) {
     terminal.addLog("ERROR", err.message || "Failed to process payment");
-    toast.error("Gagal memproses pembayaran. Silakan coba lagi.");
-    scanner.resume();
+    // Recovery jelas: kasih opsi retry, bukan diam-diam resume
+    showModal({
+      title: "Pembayaran Gagal",
+      message: `Maaf, transaksi tidak dapat diproses.<br><br><span class="text-xs" style="color:var(--color-coffee-light)">${escapeHtml(err.message || "Kesalahan jaringan")}</span>`,
+      icon: "error",
+      confirmLabel: "Coba Lagi",
+      confirmVariant: "primary",
+      onConfirm: () => processPayment(user, score),
+      onCancel: () => {
+        isPaymentProcessing = false;
+        scanner?.resume();
+      },
+    });
+    return;
+  } finally {
     isPaymentProcessing = false;
   }
 }
 
-// ── Receipt ────────────────────────────────────────────────
 function showReceipt(user, result, score) {
+  if (!receiptPanel) return;
   receiptPanel.classList.remove("hidden");
+  animateIn(receiptPanel, "fade");
 
   const txnId = result.transaction_id || generateTxnId();
   const dateStr = new Date().toLocaleString("id-ID");
 
-  document.getElementById("receipt-txn-id").textContent = txnId;
-  document.getElementById("receipt-date").textContent = dateStr;
-  document.getElementById("receipt-user").textContent = user.name;
-  document.getElementById("receipt-amount").textContent =
-    formatRupiah(ORDER_TOTAL);
-  document.getElementById("receipt-score").textContent = score.toFixed(4);
+  setText("receipt-txn-id", txnId);
+  setText("receipt-date", dateStr);
+  setText("receipt-user", user.name);
+  setText("receipt-amount", formatRupiah(ORDER_TOTAL));
+  setText("receipt-score", score.toFixed(4));
 
-  // Persistence: Store last transaction
   localStorage.setItem(
     "palmid_last_payment",
     JSON.stringify({
@@ -244,11 +270,43 @@ function showReceipt(user, result, score) {
     }),
   );
 
-  document.getElementById("btn-finish").onclick = () => {
-    localStorage.removeItem("palmid_last_payment");
-    window.location.reload();
-  };
+  const btnFinish = document.getElementById("btn-finish");
+  if (btnFinish) {
+    btnFinish.onclick = async () => {
+      localStorage.removeItem("palmid_last_payment");
+      await resetToFreshCheckout();
+    };
+  }
 }
 
-// ── Run ────────────────────────────────────────────────────
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+/**
+ * Reset UI ke kondisi awal TANPA reload halaman.
+ * Receipt fade out → checkout panel fade in → scanner siap pakai.
+ */
+async function resetToFreshCheckout() {
+  // Receipt out
+  if (receiptPanel) {
+    await fadeSwap(receiptPanel, () => receiptPanel.classList.add("hidden"));
+  }
+  // Checkout panel back
+  if (checkoutPanel) {
+    checkoutPanel.classList.remove("hidden");
+    animateIn(checkoutPanel, "fade");
+  }
+  // Scanner UI reset
+  if (scannerContainer) scannerContainer.style.display = "";
+  resetPaymentButton();
+  if (btnStartPayment) btnStartPayment.style.display = "";
+  if (btnStopPayment) {
+    btnStopPayment.style.display = "";
+    btnStopPayment.hidden = true;
+  }
+  terminal.addLog("SYSTEM", "Siap untuk transaksi berikutnya.");
+}
+
 init();

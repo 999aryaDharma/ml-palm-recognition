@@ -1,26 +1,22 @@
 /* ============================================================
-   enroll.css — Enrollment specific styles
+   enroll.css — Enrollment page styles
+   Palm Biometric App — Interactive 5-Sample Capture
    ============================================================ */
 
+/* ── Step animation ─────────────────────────────────────── */
 .enroll-step {
   animation: fade-in var(--duration-base) var(--ease-out);
 }
 
 @keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Scanner Layout */
+/* ── Scanner Layout: 2-col on desktop ───────────────────── */
 .scanner-layout {
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: 1fr 300px;
   gap: var(--space-8);
   align-items: start;
 }
@@ -31,13 +27,242 @@
   }
 }
 
-/* Progress Stepper */
+/* ══════════════════════════════════════════════════════════
+   ENROLLMENT INFO CARD (Step 1)
+   ══════════════════════════════════════════════════════════ */
+.enroll-info-card {
+  background: var(--color-surface-warm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  margin: var(--space-6) 0;
+}
+
+.enroll-info-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.enroll-info-card__icon {
+  font-size: 1.4rem;
+}
+
+.enroll-info-card__steps {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-left: var(--space-2);
+}
+
+.enroll-info-card__steps li {
+  font-size: var(--text-sm);
+  color: var(--color-coffee-light);
+  padding-left: var(--space-5);
+  position: relative;
+  counter-increment: step-counter;
+}
+
+.enroll-info-card__steps li::before {
+  content: counter(step-counter);
+  position: absolute;
+  left: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-matcha);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  top: 1px;
+}
+
+.enroll-info-card__steps {
+  counter-reset: step-counter;
+}
+
+.enroll-info-card__privacy {
+  font-size: var(--text-xs);
+  color: var(--color-coffee-light);
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+/* ══════════════════════════════════════════════════════════
+   POSE GUIDE BAR (above scanner)
+   ══════════════════════════════════════════════════════════ */
+.pose-guide {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.pose-guide__poses {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.pose-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--space-2) var(--space-1);
+  border-radius: var(--radius-md);
+  border: 2px solid transparent;
+  transition: all 0.25s ease;
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pose-item--active {
+  opacity: 1;
+  border-color: var(--color-matcha);
+  background: var(--color-matcha-soft);
+}
+
+.pose-item--done {
+  opacity: 0.9;
+  border-color: var(--color-border);
+  background: var(--color-surface-warm);
+  position: relative;
+}
+
+.pose-item--done::after {
+  content: "✓";
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-matcha);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pose-item__icon {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.pose-item__label {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--color-coffee-light);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pose-item--active .pose-item__label {
+  color: var(--color-matcha);
+}
+
+/* ══════════════════════════════════════════════════════════
+   SCANNER ADDITIONS
+   ══════════════════════════════════════════════════════════ */
+
+/* Sample number badge on scanner */
+.scanner__sample-badge {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  background: rgba(10, 10, 10, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-family: var(--font-mono);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  z-index: 10;
+  line-height: 1.4;
+}
+
+.scanner__sample-badge span {
+  color: var(--color-matcha);
+  font-size: 1rem;
+}
+
+/* Quality hint overlay at bottom of scanner */
+.capture-quality-hint {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(217, 115, 101, 0.92);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  color: #fff;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  z-index: 20;
+  animation: ux-fade-in 0.2s ease;
+  border-bottom-left-radius: inherit;
+  border-bottom-right-radius: inherit;
+}
+
+.capture-quality-hint.hidden {
+  display: none;
+}
+
+/* ══════════════════════════════════════════════════════════
+   ENROLLMENT PANEL (right column)
+   ══════════════════════════════════════════════════════════ */
+.enroll-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-soft);
+  position: sticky;
+  top: var(--space-8);
+}
+
+.enroll-panel__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-4);
+}
+
+.enroll-panel__status {
+  color: var(--color-coffee-light);
+  margin-top: var(--space-3);
+  line-height: 1.5;
+}
+
+/* ── Progress Stepper ───────────────────────────────────── */
 .progress-stepper {
   display: flex;
   justify-content: space-between;
   align-items: center;
   position: relative;
-  margin: var(--space-6) 0;
+  margin: var(--space-3) 0;
   padding: 0 var(--space-2);
 }
 
@@ -66,7 +291,9 @@
 
 .step-dot.active {
   border-color: var(--color-matcha);
-  transform: scale(1.2);
+  background: var(--color-matcha-soft);
+  transform: scale(1.3);
+  box-shadow: 0 0 0 3px var(--color-matcha-soft);
 }
 
 .step-dot.completed {
@@ -74,7 +301,184 @@
   border-color: var(--color-matcha);
 }
 
-/* Success icon */
+/* ── Sample Thumbnail Grid ──────────────────────────────── */
+.sample-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+}
+
+.sample-slot {
+  aspect-ratio: 3 / 4;
+  border-radius: var(--radius-md);
+  border: 2px dashed var(--color-border);
+  background: var(--color-surface-warm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s var(--ease-out);
+  cursor: default;
+}
+
+.sample-slot--active-slot {
+  border-color: var(--color-matcha);
+  border-style: solid;
+  background: var(--color-matcha-soft);
+  animation: slot-pulse 2s ease-in-out infinite;
+}
+
+@keyframes slot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(138, 154, 91, 0.3); }
+  50%       { box-shadow: 0 0 0 5px rgba(138, 154, 91, 0); }
+}
+
+.sample-slot--captured {
+  border-color: var(--color-matcha);
+  border-style: solid;
+}
+
+.sample-slot__number {
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: var(--color-coffee-light);
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
+}
+
+.sample-slot__icon {
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+/* Thumbnail image fills slot on capture */
+.sample-slot__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  animation: thumb-appear 0.4s ease forwards;
+}
+
+@keyframes thumb-appear {
+  from { opacity: 0; transform: scale(1.1); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Green check badge on captured slot */
+.sample-slot__check {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-matcha);
+  color: #fff;
+  font-size: 0.55rem;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* ── Pose Instruction Card ──────────────────────────────── */
+.pose-instruction {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-matcha-soft);
+  border: 1px solid var(--color-matcha);
+  border-radius: var(--radius-lg);
+  margin-top: var(--space-3);
+  transition: all 0.3s ease;
+}
+
+.pose-instruction__icon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+}
+
+.pose-instruction__label {
+  font-size: var(--text-xs);
+  color: var(--color-matcha);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 2px;
+}
+
+.pose-instruction__text {
+  font-size: var(--text-sm);
+  color: var(--color-coffee);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* ══════════════════════════════════════════════════════════
+   VERIFY STEP (Step 3)
+   ══════════════════════════════════════════════════════════ */
+.verify-card {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: var(--space-8);
+  text-align: left;
+}
+
+.verify-bar-wrap {
+  margin-bottom: var(--space-5);
+}
+
+.verify-bar-track {
+  width: 100%;
+  height: 8px;
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-bottom: var(--space-2);
+}
+
+.verify-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-matcha), #b5c875);
+  border-radius: var(--radius-full);
+  transition: width 0.4s var(--ease-out);
+  width: 0%;
+}
+
+.verify-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.verify-steps-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+/* ══════════════════════════════════════════════════════════
+   SUCCESS STEP (Step 4)
+   ══════════════════════════════════════════════════════════ */
+.success-card {
+  padding: var(--space-10) var(--space-8);
+  max-width: 560px;
+  margin: 0 auto;
+}
+
 .status-icon {
   width: 80px;
   height: 80px;
@@ -82,7 +486,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2.5rem;
 }
 
 .status-icon--success {
@@ -90,7 +493,74 @@
   color: var(--color-matcha);
 }
 
-/* Form group overrides for center alignment if needed */
+.success-meta {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-6);
+  margin: var(--space-5) 0;
+  flex-wrap: wrap;
+}
+
+.success-meta__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--color-surface-warm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  padding: var(--space-2) var(--space-4);
+}
+
+.success-meta__icon {
+  font-size: 1rem;
+}
+
+.success-meta__value {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-coffee);
+}
+
+/* Thumbnail review strip on success */
+.success-thumbs {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: center;
+  margin: var(--space-6) 0;
+  flex-wrap: wrap;
+}
+
+.success-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 2px solid var(--color-matcha);
+  position: relative;
+  box-shadow: var(--shadow-soft);
+}
+
+.success-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.success-thumb__label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  font-size: 0.55rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 2px 0;
+  font-family: var(--font-mono);
+}
+
+/* ── Helpers ─────────────────────────────────────────────── */
 .enroll-step.text-center .form-group {
   text-align: left;
   max-width: 400px;

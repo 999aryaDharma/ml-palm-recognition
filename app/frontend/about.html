@@ -1,0 +1,1793 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>About — PalmID</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/layout.css" />
+    <link rel="stylesheet" href="css/components.css" />
+    <link rel="stylesheet" href="css/ux.css" />
+
+    <!-- GSAP -->
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/ScrollTrigger.min.js"></script>
+
+    <!-- Mermaid -->
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+      mermaid.initialize({ startOnLoad: true, theme: 'base', themeVariables: { fontFamily: 'Inter', primaryColor: '#fef6e4', primaryBorderColor: '#e0c9a0', primaryTextColor: '#4a3f35', lineColor: '#8a9a5b' } });
+    </script>
+
+    <style>
+      /* ── Hero ────────────────────────────────── */
+      .about-hero {
+        position: relative;
+        background: linear-gradient(135deg, var(--color-surface-warm) 0%, var(--color-surface) 100%);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-2xl);
+        padding: var(--space-8) var(--space-6);
+        margin-bottom: var(--space-8);
+        text-align: center;
+        overflow: hidden;
+      }
+      .about-hero::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at 30% 20%, rgba(138,154,91,0.08) 0%, transparent 60%),
+                    radial-gradient(circle at 70% 80%, rgba(217,164,65,0.06) 0%, transparent 60%);
+        pointer-events: none;
+      }
+      .hero-palm-icon {
+        width: 72px;
+        height: 72px;
+        margin: 0 auto var(--space-4);
+        background: var(--color-matcha-soft);
+        border-radius: var(--radius-full);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--color-matcha);
+      }
+      .about-hero h1 {
+        font-family: var(--font-serif);
+        font-size: 2.75rem;
+        color: var(--color-coffee);
+        margin-bottom: var(--space-3);
+      }
+      .about-hero h1 span {
+        color: var(--color-matcha);
+      }
+      .hero-subtitle {
+        font-size: 1.1rem;
+        color: var(--color-coffee-light);
+        max-width: 560px;
+        margin: 0 auto var(--space-6);
+        line-height: 1.6;
+      }
+      .hero-chips {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .hero-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 14px;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-full);
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--color-coffee);
+      }
+      .hero-chip svg { width: 14px; height: 14px; }
+
+      /* ── Section Headers ─────────────────────── */
+      .section-eyebrow {
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--color-matcha);
+        font-weight: 600;
+        margin-bottom: var(--space-2);
+      }
+      .section-title {
+        font-size: var(--text-h3);
+        color: var(--color-coffee);
+        margin-bottom: var(--space-2);
+      }
+      .section-desc {
+        color: var(--color-coffee-light);
+        line-height: 1.7;
+        margin-bottom: var(--space-6);
+      }
+
+      /* ── Pipeline Steps ──────────────────────── */
+      .pipeline-step {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--space-4);
+        margin-bottom: var(--space-5);
+        padding: var(--space-5);
+        border-radius: var(--radius-xl);
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        transition: all 0.35s ease;
+        opacity: 0;
+        transform: translateY(24px);
+      }
+      .pipeline-step:hover {
+        transform: translateY(-3px) !important;
+        box-shadow: 0 8px 32px rgba(74,60,49,0.08);
+        border-color: var(--color-matcha);
+      }
+      .step-number {
+        flex-shrink: 0;
+        width: 52px;
+        height: 52px;
+        border-radius: var(--radius-full);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--font-mono);
+        font-weight: 700;
+        font-size: 1.1rem;
+      }
+      .step-number.green  { background: #d4edda; color: #28a745; }
+      .step-number.yellow { background: #fff3cd; color: #b8860b; }
+      .step-number.blue   { background: #cce5ff; color: #0066cc; }
+      .step-number.red    { background: #f8d7da; color: #dc3545; }
+      .step-content h3 {
+        margin-bottom: 6px;
+        color: var(--color-coffee);
+        font-size: 1.05rem;
+      }
+      .step-content p {
+        color: var(--color-coffee-light);
+        font-size: 0.92rem;
+        line-height: 1.65;
+        margin-bottom: 8px;
+      }
+      .step-detail {
+        background: var(--color-surface-warm);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        padding: var(--space-3) var(--space-4);
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        color: var(--color-coffee-light);
+        line-height: 1.7;
+        margin-bottom: 8px;
+      }
+      .tech-badge {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: var(--radius-md);
+        font-size: 0.72rem;
+        font-weight: 600;
+        font-family: var(--font-mono);
+        margin-right: 4px;
+        margin-top: 4px;
+      }
+      .tech-badge.green  { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+      .tech-badge.yellow { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+      .tech-badge.blue   { background: #cce5ff; color: #004085; border: 1px solid #b8daff; }
+      .tech-badge.red    { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+      .tech-badge.neutral {
+        background: var(--color-surface-warm);
+        color: var(--color-coffee-light);
+        border: 1px solid var(--color-border);
+      }
+
+      /* ── Stats ────────────────────────────────── */
+      .ml-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: var(--space-4);
+        margin-top: var(--space-6);
+      }
+      .stat-card {
+        background: var(--color-surface-warm);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        padding: var(--space-4) var(--space-3);
+        text-align: center;
+        opacity: 0;
+        transform: scale(0.85);
+      }
+      .stat-value {
+        font-family: var(--font-mono);
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: var(--color-matcha);
+        margin-bottom: 4px;
+      }
+      .stat-label {
+        font-size: 0.72rem;
+        color: var(--color-coffee-light);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-weight: 500;
+      }
+      .stat-sublabel {
+        font-size: 0.65rem;
+        color: var(--color-coffee-light);
+        opacity: 0.7;
+        margin-top: 2px;
+      }
+
+      /* ── Architecture Grid ───────────────────── */
+      .arch-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: var(--space-4);
+        margin-top: var(--space-6);
+      }
+      .arch-card {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-xl);
+        padding: var(--space-5);
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      .arch-card-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: var(--radius-lg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.4rem;
+        margin-bottom: var(--space-3);
+      }
+      .arch-card h4 {
+        font-size: 1rem;
+        color: var(--color-coffee);
+        margin-bottom: var(--space-2);
+      }
+      .arch-card p {
+        font-size: 0.85rem;
+        color: var(--color-coffee-light);
+        line-height: 1.6;
+      }
+      .arch-card ul {
+        margin: 8px 0 0 0;
+        padding-left: 16px;
+        font-size: 0.82rem;
+        color: var(--color-coffee-light);
+        line-height: 1.8;
+      }
+
+      /* ── Training Timeline ───────────────────── */
+      .timeline {
+        position: relative;
+        padding-left: 28px;
+        margin-top: var(--space-6);
+      }
+      .timeline::before {
+        content: '';
+        position: absolute;
+        left: 8px;
+        top: 4px;
+        bottom: 4px;
+        width: 2px;
+        background: var(--color-border);
+      }
+      .timeline-item {
+        position: relative;
+        margin-bottom: var(--space-5);
+        opacity: 0;
+        transform: translateX(-16px);
+      }
+      .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -24px;
+        top: 6px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--color-matcha);
+        border: 2px solid var(--color-surface);
+        box-shadow: 0 0 0 2px var(--color-matcha-soft);
+      }
+      .timeline-item h4 {
+        font-size: 0.95rem;
+        color: var(--color-coffee);
+        margin-bottom: 4px;
+      }
+      .timeline-item p {
+        font-size: 0.85rem;
+        color: var(--color-coffee-light);
+        line-height: 1.6;
+      }
+
+      /* ── Mermaid container ───────────────────── */
+      .diagram-container {
+        padding: var(--space-4);
+        background: white;
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--color-border);
+        overflow-x: auto;
+        margin-bottom: var(--space-6);
+        opacity: 0;
+        transform: translateY(16px);
+      }
+      .diagram-container .mermaid {
+        display: flex;
+        justify-content: center;
+      }
+
+      /* ── Connector arrow between sections ───── */
+      .section-connector {
+        text-align: center;
+        padding: var(--space-4) 0;
+        color: var(--color-border);
+        opacity: 0;
+      }
+      .section-connector svg {
+        width: 24px;
+        height: 24px;
+        animation: float-arrow 2s ease-in-out infinite;
+      }
+      @keyframes float-arrow {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(6px); }
+      }
+
+      /* ── Use-case grid ───────────────────────── */
+      .usecase-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: var(--space-4);
+        margin-top: var(--space-6);
+      }
+      .usecase-card {
+        text-align: center;
+        padding: var(--space-5);
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-xl);
+        transition: all 0.3s ease;
+        opacity: 0;
+        transform: translateY(16px);
+      }
+      .usecase-card:hover {
+        transform: translateY(-4px) !important;
+        box-shadow: 0 8px 24px rgba(74,60,49,0.08);
+        border-color: var(--color-matcha);
+      }
+      .usecase-icon {
+        font-size: 2.2rem;
+        margin-bottom: var(--space-3);
+      }
+      .usecase-card h4 {
+        font-size: 0.95rem;
+        color: var(--color-coffee);
+        margin-bottom: var(--space-2);
+      }
+      .usecase-card p {
+        font-size: 0.8rem;
+        color: var(--color-coffee-light);
+        line-height: 1.5;
+      }
+
+      /* ── Flowchart Interaction ────────────────── */
+      .diagram-container svg .clickable {
+        cursor: pointer;
+      }
+      .diagram-container svg .clickable rect,
+      .diagram-container svg .clickable polygon,
+      .diagram-container svg .clickable circle,
+      .diagram-container svg .clickable path,
+      .diagram-container svg .clickable text {
+        transition: fill var(--duration-base) var(--ease-out),
+                    stroke var(--duration-base) var(--ease-out),
+                    stroke-width var(--duration-base) var(--ease-out);
+      }
+      .diagram-container svg .clickable:hover rect,
+      .diagram-container svg .clickable:hover polygon,
+      .diagram-container svg .clickable:hover circle,
+      .diagram-container svg .clickable:hover path {
+        fill: var(--color-matcha-soft) !important;
+        stroke: var(--color-matcha) !important;
+        stroke-width: 2.5px !important;
+        filter: drop-shadow(0 4px 8px rgba(138,154,91,0.15));
+      }
+      .diagram-container svg .clickable:hover text {
+        fill: var(--color-coffee) !important;
+        font-weight: 600 !important;
+      }
+
+      /* Hint banner above diagram */
+      .diagram-hint {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: var(--space-3) var(--space-4);
+        background: var(--color-surface-warm);
+        border: 1px dashed var(--color-border);
+        border-radius: var(--radius-lg);
+        font-size: 0.8rem;
+        color: var(--color-coffee-light);
+        margin-bottom: var(--space-3);
+      }
+      .diagram-hint svg {
+        color: var(--color-matcha);
+        flex-shrink: 0;
+      }
+
+      /* Custom Detail Modal */
+      .flow-modal-overlay {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        z-index: 1000 !important;
+        background: rgba(44, 38, 32, 0);
+        backdrop-filter: blur(0px);
+        -webkit-backdrop-filter: blur(0px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease, background-color 0.3s ease, backdrop-filter 0.3s ease, -webkit-backdrop-filter 0.3s ease;
+        padding: var(--space-4);
+      }
+      .flow-modal-overlay.is-active {
+        opacity: 1;
+        pointer-events: auto;
+        background: rgba(44, 38, 32, 0.45);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+      }
+      .flow-modal-card {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-2xl);
+        box-shadow: 0 32px 80px rgba(44, 38, 32, 0.2), 0 0 0 1px rgba(138, 154, 91, 0.04);
+        width: 100%;
+        max-width: 530px;
+        max-height: 85vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        
+        /* Interactive elastic pop up styles */
+        transform: translateY(40px) scale(0.92) rotate(-0.5deg);
+        transform-origin: center bottom;
+        opacity: 0;
+        transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.25s ease;
+      }
+      .flow-modal-overlay.is-active .flow-modal-card {
+        transform: translateY(0) scale(1) rotate(0deg);
+        opacity: 1;
+        /* Springy elastic bounce when opening */
+        transition: transform 0.55s cubic-bezier(0.34, 1.76, 0.64, 1), opacity 0.35s ease;
+      }
+      .flow-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: var(--space-4) var(--space-5);
+        border-bottom: 1px solid var(--color-border);
+        background: var(--color-surface-warm);
+        flex-shrink: 0;
+      }
+      .flow-modal-stage {
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: var(--radius-md);
+      }
+      .flow-modal-stage.stage-capture { background: #e2e8f0; color: #475569; }
+      .flow-modal-stage.stage-1 { background: #d4edda; color: #155724; }
+      .flow-modal-stage.stage-2a { background: #fff3cd; color: #856404; }
+      .flow-modal-stage.stage-2b { background: #cce5ff; color: #004085; }
+      .flow-modal-stage.stage-3 { background: #f8d7da; color: #721c24; }
+      .flow-modal-stage.stage-resp { background: var(--color-surface-warm); color: var(--color-coffee-light); }
+
+      .flow-modal-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        line-height: 1;
+        cursor: pointer;
+        color: var(--color-coffee-light);
+        padding: 4px;
+        border-radius: var(--radius-md);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s, transform 0.2s;
+      }
+      .flow-modal-close:hover {
+        background: rgba(0,0,0,0.05);
+        color: var(--color-coffee);
+        transform: rotate(90deg);
+      }
+
+      .flow-modal-body {
+        padding: var(--space-5);
+        overflow-y: auto;
+        flex: 1;
+      }
+
+      /* Staggered entrance transition for elements inside the modal */
+      .flow-modal-card .flow-modal-header,
+      .flow-modal-body > * {
+        opacity: 0;
+        transform: translateY(16px);
+        transition: transform 0.45s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.4s ease;
+      }
+      
+      .flow-modal-overlay.is-active .flow-modal-card .flow-modal-header,
+      .flow-modal-overlay.is-active .flow-modal-body > * {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      /* Delays for cascading reveal effect */
+      .flow-modal-overlay.is-active .flow-modal-header { transition-delay: 0.05s; }
+      .flow-modal-overlay.is-active .flow-modal-title-row { transition-delay: 0.12s; }
+      .flow-modal-overlay.is-active .flow-modal-desc { transition-delay: 0.18s; }
+      .flow-modal-overlay.is-active .flow-modal-tech-box { transition-delay: 0.24s; }
+      .flow-modal-overlay.is-active .flow-modal-meta-row { transition-delay: 0.3s; }
+      .flow-modal-overlay.is-active .flow-modal-importance { transition-delay: 0.36s; }
+      .flow-modal-title-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: var(--space-3);
+      }
+      .flow-modal-icon {
+        font-size: 2.2rem;
+      }
+      .flow-modal-title {
+        font-size: 1.25rem;
+        color: var(--color-coffee);
+        margin: 0;
+      }
+      .flow-modal-desc {
+        font-size: 0.9rem;
+        color: var(--color-coffee-light);
+        line-height: 1.6;
+        margin-bottom: var(--space-4);
+      }
+      
+      .flow-modal-tech-box {
+        background: var(--color-surface-warm);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-xl);
+        padding: var(--space-4);
+        margin-bottom: var(--space-4);
+      }
+      .flow-modal-tech-title {
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--color-coffee-light);
+        margin-bottom: var(--space-2);
+        font-weight: 600;
+      }
+      .flow-modal-tech-list {
+        margin: 0;
+        padding-left: 18px;
+        font-size: 0.82rem;
+        color: var(--color-coffee);
+        line-height: 1.7;
+      }
+      
+      .flow-modal-meta-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--space-3);
+        margin-bottom: var(--space-4);
+      }
+      .flow-modal-meta-card {
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        padding: var(--space-3);
+      }
+      .flow-modal-meta-label {
+        font-size: 0.68rem;
+        color: var(--color-coffee-light);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 2px;
+      }
+      .flow-modal-meta-value {
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: var(--color-coffee);
+      }
+      .flow-modal-meta-value.latency {
+        color: var(--color-matcha);
+        font-family: var(--font-mono);
+      }
+
+      .flow-modal-importance {
+        background: rgba(138, 154, 91, 0.06);
+        border-left: 3px solid var(--color-matcha);
+        padding: var(--space-3) var(--space-4);
+        border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+        font-size: 0.82rem;
+        color: var(--color-coffee);
+        line-height: 1.5;
+      }
+    </style>
+  </head>
+
+  <body class="app-body">
+    <header class="app-navbar" role="banner"></header>
+
+    <main class="app-main">
+      <div class="container-sm">
+
+        <!-- ═══════════════════ HERO ═══════════════════ -->
+        <div class="about-hero" id="hero">
+          <div class="hero-palm-icon">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 11V6a2 2 0 0 0-4 0v5"/>
+              <path d="M14 10V4a2 2 0 0 0-4 0v6"/>
+              <path d="M10 10.5V6a2 2 0 0 0-4 0v8"/>
+              <path d="M6 14a4 4 0 0 0 4 4h4a4 4 0 0 0 4-4v-2.5"/>
+            </svg>
+          </div>
+          <h1>Palm<span>ID</span></h1>
+          <p class="hero-subtitle">
+            Sistem biometrik pengenalan telapak tangan berbasis <strong>Deep Learning</strong> 
+            dengan arsitektur web client-server. Dibangun menggunakan MobileFaceNet + ArcFace 
+            untuk menghasilkan identifikasi yang akurat, cepat, dan tanpa sentuhan.
+          </p>
+          <div class="hero-chips">
+            <span class="hero-chip">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              ~150ms Latensi
+            </span>
+            <span class="hero-chip">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              Contactless
+            </span>
+            <span class="hero-chip">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              128-d Embedding
+            </span>
+          </div>
+        </div>
+
+        <!-- ═══════════════ ARSITEKTUR ═══════════════ -->
+        <section class="surface-card" style="margin-bottom: var(--space-8)" id="sec-arch">
+          <div class="section-eyebrow">ARCHITECTURE</div>
+          <h2 class="section-title">Arsitektur Sistem</h2>
+          <p class="section-desc">
+            PalmID memisahkan <strong>Offline Training Pipeline</strong> (proses pelatihan model satu kali) 
+            dan <strong>Runtime Inference</strong> (pengenalan waktu-nyata). Frontend menangkap gambar 
+            melalui Webcam API, mengirimnya ke backend FastAPI via HTTP REST, lalu backend menjalankan 
+            seluruh pipeline ML dan mengembalikan hasil identifikasi.
+          </p>
+
+          <!-- Hint Banner -->
+          <div class="diagram-hint" id="arch-diagram-hint">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span>💡 <strong>Tips:</strong> Klik setiap node diagram untuk melihat detail arsitekturnya.</span>
+          </div>
+
+          <div class="diagram-container" id="diagram-arch">
+            <div class="mermaid">
+graph TB
+    subgraph OFFLINE ["Offline ML Pipeline — Python"]
+        direction TB
+        DS["Dataset Tongji<br/>12.000 gambar, 300 individu"]
+        TR["Fine-Tuning<br/>MobileFaceNet + ArcFace"]
+        EVAL["Evaluasi & Kalibrasi<br/>EER, TAR/FAR, Threshold"]
+        ART["ML Artifacts<br/>palm_recognizer.pt<br/>threshold.json"]
+        DS --> TR --> EVAL --> ART
+    end
+    subgraph BACKEND ["Backend — FastAPI + Python"]
+        direction TB
+        API["REST API<br/>FastAPI"]
+        ML["ML Pipeline<br/>MediaPipe + PyTorch"]
+        DB[("SQLite<br/>Users + Templates")]
+        CACHE["Embedding Cache<br/>in-memory NumPy"]
+        API --> ML
+        API <--> DB
+        ML --> CACHE
+        DB --> CACHE
+    end
+    subgraph FRONTEND ["Frontend — Browser"]
+        direction TB
+        WEB["Web App<br/>Vanilla JS + CSS"]
+        CAM["Webcam API<br/>getUserMedia"]
+        CAM --> WEB
+    end
+    USER(["Pengguna"])
+    USER -->|"tunjukkan telapak"| CAM
+    WEB -->|"hasil identifikasi"| USER
+    WEB <-->|"HTTP REST + multipart"| API
+    ART -.->|"load saat startup"| ML
+    classDef offline fill:#e8f4f8,stroke:#3a7ca5
+    classDef backend fill:#fef6e4,stroke:#d9a441
+    classDef frontend fill:#f0fdf4,stroke:#16a34a
+    class DS,TR,EVAL,ART offline
+    class API,ML,DB,CACHE backend
+    class WEB,CAM frontend
+
+    click DS call showDetail("DS")
+    click TR call showDetail("TR")
+    click EVAL call showDetail("EVAL")
+    click ART call showDetail("ART")
+    click API call showDetail("API")
+    click ML call showDetail("ML")
+    click DB call showDetail("DB")
+    click CACHE call showDetail("CACHE")
+    click WEB call showDetail("WEB")
+    click CAM call showDetail("CAM")
+    click USER call showDetail("USER")
+            </div>
+          </div>
+
+          <div class="arch-grid">
+            <div class="arch-card">
+              <div class="arch-card-icon" style="background:#e8f4f8;">🧠</div>
+              <h4>ML Pipeline (Offline)</h4>
+              <p>Pelatihan model dilakukan sekali menggunakan dataset Tongji. Menghasilkan file model (.pt) dan parameter threshold (.json).</p>
+              <ul>
+                <li>PyTorch + CUDA</li>
+                <li>ArcFace Metric Learning</li>
+                <li>Cross-session evaluation</li>
+              </ul>
+            </div>
+            <div class="arch-card">
+              <div class="arch-card-icon" style="background:#fef6e4;">⚡</div>
+              <h4>Backend (Runtime)</h4>
+              <p>FastAPI menerima gambar, menjalankan detection → ROI → embedding → matching, dan mengembalikan JSON response.</p>
+              <ul>
+                <li>MediaPipe Hand Landmarker</li>
+                <li>TorchScript Inference</li>
+                <li>SQLite + In-memory Cache</li>
+              </ul>
+            </div>
+            <div class="arch-card">
+              <div class="arch-card-icon" style="background:#f0fdf4;">🖥️</div>
+              <h4>Frontend (Browser)</h4>
+              <p>Antarmuka web menangkap frame webcam, mengirim via multipart upload, dan menampilkan hasil dengan feedback visual.</p>
+              <ul>
+                <li>Webcam API (getUserMedia)</li>
+                <li>Real-time bounding box</li>
+                <li>State machine scanner</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <div class="section-connector" id="conn1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+        </div>
+
+        <!-- ═══════════════ DL PIPELINE ═══════════════ -->
+        <section class="surface-card" style="margin-bottom: var(--space-8)" id="sec-pipeline">
+          <div class="section-eyebrow">DEEP LEARNING PIPELINE</div>
+          <h2 class="section-title">Bagaimana Sistem Bekerja</h2>
+          <p class="section-desc">
+            Setiap kali pengguna menunjukkan telapak tangan ke kamera, gambar tersebut melewati 
+            <strong>4 tahap pemrosesan ML</strong> secara berurutan di backend Python. 
+            Seluruh proses berjalan dalam waktu kurang dari 200 milidetik.
+          </p>
+
+          <!-- Hint Banner -->
+          <div class="diagram-hint" id="pipeline-diagram-hint">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span>💡 <strong>Tips:</strong> Klik setiap node diagram untuk melihat detail proses ML-nya.</span>
+          </div>
+
+          <!-- Pipeline Flowchart -->
+          <div class="diagram-container" id="diagram-pipeline">
+            <div class="mermaid">
+flowchart LR
+    INPUT["JPEG Frame<br/>dari Webcam"]
+    subgraph S1 ["Stage 1 — Detection"]
+        direction TB
+        S1A["Hand Landmarker"]
+        S1B["21 Landmarks"]
+        S1C["Quality Gate<br/>visibility · orientation · size"]
+        S1A --> S1B --> S1C
+    end
+    subgraph S2A ["Stage 2a — ROI"]
+        direction TB
+        R1["Valley line<br/>landmark 5 ↔ 17"]
+        R2["Rotate + Crop"]
+        R3["112×112 RGB"]
+        R1 --> R2 --> R3
+    end
+    subgraph S2B ["Stage 2b — Embedding"]
+        direction TB
+        E1["Normalize<br/>μ=0.5 σ=0.5"]
+        E2["MobileFaceNet<br/>backbone"]
+        E3["128-dim vector<br/>L2-normalized"]
+        E1 --> E2 --> E3
+    end
+    subgraph S3 ["Stage 3 — Matching"]
+        direction TB
+        M1["Load Cache"]
+        M2["Cosine Similarity"]
+        M3["Top-3 Average"]
+        M4{"≥ threshold?"}
+        M5["✅ Identified"]
+        M6["❌ Unknown"]
+        M1 --> M2 --> M3 --> M4
+        M4 -- Ya --> M5
+        M4 -- Tidak --> M6
+    end
+    RESP["JSON Response"]
+    INPUT --> S1 --> S2A --> S2B --> S3 --> RESP
+    classDef stage1 fill:#d4edda,stroke:#28a745
+    classDef stage2a fill:#fff3cd,stroke:#ffc107
+    classDef stage2b fill:#cce5ff,stroke:#0066cc
+    classDef stage3 fill:#f8d7da,stroke:#dc3545
+    class S1A,S1B,S1C stage1
+    class R1,R2,R3 stage2a
+    class E1,E2,E3 stage2b
+    class M1,M2,M3,M4,M5,M6 stage3
+
+    click INPUT call showDetail("INPUT")
+    click S1A call showDetail("S1A")
+    click S1B call showDetail("S1B")
+    click S1C call showDetail("S1C")
+    click R1 call showDetail("R1")
+    click R2 call showDetail("R2")
+    click R3 call showDetail("R3")
+    click E1 call showDetail("E1")
+    click E2 call showDetail("E2")
+    click E3 call showDetail("E3")
+    click M1 call showDetail("M1")
+    click M2 call showDetail("M2")
+    click M3 call showDetail("M3")
+    click M4 call showDetail("M4")
+    click M5 call showDetail("M5")
+    click M6 call showDetail("M6")
+    click RESP call showDetail("RESP")
+            </div>
+          </div>
+
+          <!-- Step 1 -->
+          <div class="pipeline-step" data-step>
+            <div class="step-number green">01</div>
+            <div class="step-content">
+              <h3>Hand Detection & Quality Gate</h3>
+              <p>
+                MediaPipe Hand Landmarker mendeteksi 21 titik koordinat tangan secara real-time. 
+                Sebelum lanjut, sistem menjalankan <em>quality gate</em> ketat untuk memastikan 
+                data yang masuk berkualitas tinggi.
+              </p>
+              <div class="step-detail">
+                <strong>Quality Gate Checks:</strong><br>
+                • Visibility ≥ 0.5 untuk semua 21 landmark<br>
+                • Palm menghadap kamera (heuristik depth MCP vs TIP landmark 9 & 12)<br>
+                • Ukuran tangan ≥ 25% diagonal frame<br>
+                • Laplacian variance ≥ 50 (deteksi blur)
+              </div>
+              <span class="tech-badge green">MediaPipe Python</span>
+              <span class="tech-badge green">21 Landmarks</span>
+              <span class="tech-badge green">3D Heuristic</span>
+            </div>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="pipeline-step" data-step>
+            <div class="step-number yellow">02</div>
+            <div class="step-content">
+              <h3>ROI Extraction (Region of Interest)</h3>
+              <p>
+                Mengekstrak area telapak tangan yang relevan secara geometris. 
+                <em>Valley line</em> ditarik antara landmark 5 (pangkal telunjuk) dan 17 (pangkal kelingking), 
+                lalu di-offset 30% ke arah pergelangan (landmark 0) sebagai pusat ROI.
+              </p>
+              <div class="step-detail">
+                <strong>Proses Geometris:</strong><br>
+                • Hitung sudut rotasi dari valley line (atan2)<br>
+                • Gunakan cv2.warpAffine untuk rotasi gambar<br>
+                • Crop persegi dengan sisi = 1.2× panjang valley line<br>
+                • Resize ke 112×112 piksel RGB standar
+              </div>
+              <span class="tech-badge yellow">OpenCV</span>
+              <span class="tech-badge yellow">Affine Transform</span>
+              <span class="tech-badge yellow">Landmark Geometry</span>
+            </div>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="pipeline-step" data-step>
+            <div class="step-number blue">03</div>
+            <div class="step-content">
+              <h3>Feature Embedding (Deep Learning)</h3>
+              <p>
+                Gambar ROI 112×112 dilewatkan melalui model <strong>MobileFaceNet</strong> yang telah 
+                di-<em>fine-tune</em> dengan <strong>ArcFace Loss</strong> pada dataset Tongji. 
+                Outputnya adalah vektor numerik 128 dimensi yang merepresentasikan identitas unik 
+                pola garis telapak tangan — ibarat "sidik jari digital" dalam ruang matematis.
+              </p>
+              <div class="step-detail">
+                <strong>Model Architecture:</strong><br>
+                • Backbone: MobileFaceNet (pretrained MS-Celeb-1M)<br>
+                • Loss: ArcFace (s=64, m=0.5) — angular margin metric learning<br>
+                • Output: 128-dim L2-normalized embedding vector<br>
+                • Inference: TorchScript (.pt) di CPU/GPU
+              </div>
+              <span class="tech-badge blue">MobileFaceNet</span>
+              <span class="tech-badge blue">ArcFace Loss</span>
+              <span class="tech-badge blue">PyTorch</span>
+              <span class="tech-badge blue">128-dim</span>
+            </div>
+          </div>
+
+          <!-- Step 4 -->
+          <div class="pipeline-step" data-step>
+            <div class="step-number red">04</div>
+            <div class="step-content">
+              <h3>Cosine Similarity Matching</h3>
+              <p>
+                Vektor embedding baru dibandingkan dengan seluruh template yang tersimpan di database 
+                menggunakan <strong>Cosine Similarity</strong>. Untuk setiap pengguna, diambil 
+                rata-rata dari <em>top-3</em> skor tertinggi (multi-template averaging) agar 
+                hasil lebih stabil. Jika skor terbaik ≥ threshold kalibrasi, identitas dikenali.
+              </p>
+              <div class="step-detail">
+                <strong>Matching Strategy:</strong><br>
+                • Untuk tiap user: hitung cosine(query, setiap template)<br>
+                • Urutkan descending, ambil rata-rata top-3<br>
+                • Pilih user dengan skor tertinggi<br>
+                • Jika skor ≥ threshold → status: "identified"<br>
+                • Jika skor &lt; threshold → status: "unknown"
+              </div>
+              <span class="tech-badge red">Cosine Similarity</span>
+              <span class="tech-badge red">Multi-template K-NN</span>
+              <span class="tech-badge red">Threshold Calibration</span>
+            </div>
+          </div>
+        </section>
+
+        <div class="section-connector" id="conn2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+        </div>
+
+        <!-- ═══════════════ TRAINING ═══════════════ -->
+        <section class="surface-card" style="margin-bottom: var(--space-8)" id="sec-training">
+          <div class="section-eyebrow">MODEL TRAINING</div>
+          <h2 class="section-title">Proses Pelatihan Model</h2>
+          <p class="section-desc">
+            Model dilatih menggunakan dataset <strong>Tongji Contactless Palmprint Database</strong> 
+            (12.000 gambar, 300 individu) dengan protokol cross-session: 200 individu untuk training 
+            (sesi 1) dan 100 individu untuk evaluasi hold-out (sesi 2).
+          </p>
+
+          <div class="timeline">
+            <div class="timeline-item" data-tl>
+              <h4>Phase 0 — Smoke Test</h4>
+              <p>Validasi pretrained MobileFaceNet (MS-Celeb-1M) pada sampel Tongji. 
+                 Memastikan backbone dapat menghasilkan embedding yang bermakna sebelum fine-tuning.</p>
+            </div>
+            <div class="timeline-item" data-tl>
+              <h4>Phase 1 — Softmax Warm-up</h4>
+              <p>Fine-tune dengan standard Cross-Entropy Loss selama beberapa epoch awal. 
+                 Tujuannya agar weight model beradaptasi ke domain palmprint sebelum dioptimasi dengan metric learning.</p>
+            </div>
+            <div class="timeline-item" data-tl>
+              <h4>Phase 2 — ArcFace Fine-tuning</h4>
+              <p>Ganti loss function ke <strong>ArcFace</strong> (s=64, m=0.5) — menambahkan angular margin 
+                 di ruang embedding sehingga vektor dari kelas yang sama semakin rapat, 
+                 dan vektor antarkelas semakin terpisah jauh.</p>
+            </div>
+            <div class="timeline-item" data-tl>
+              <h4>Phase 3 — Evaluasi & Kalibrasi</h4>
+              <p>Evaluasi pada hold-out test set (100 individu, sesi 2). Hitung metrik biometrik 
+                 (EER, TAR@FAR, ROC AUC). Kalibrasi threshold optimal dari kurva FAR/FRR.</p>
+            </div>
+            <div class="timeline-item" data-tl>
+              <h4>Phase 4 — Export TorchScript</h4>
+              <p>Model final diekspor ke format <code>TorchScript (.pt)</code> untuk deployment di backend FastAPI.
+                 File <code>threshold.json</code> menyimpan parameter kalibrasi.</p>
+            </div>
+          </div>
+        </section>
+
+        <div class="section-connector" id="conn3">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+        </div>
+
+        <!-- ═══════════════ METRICS ═══════════════ -->
+        <section class="surface-card" style="margin-bottom: var(--space-8)" id="sec-metrics">
+          <div class="section-eyebrow">PERFORMANCE</div>
+          <h2 class="section-title">Target Performa</h2>
+          <p class="section-desc">
+            Metrik biometrik dievaluasi menggunakan protokol cross-session pada hold-out test set 
+            (100 individu yang <em>tidak pernah</em> dilihat model saat training). 
+            Berikut target performa sistem:
+          </p>
+
+          <div class="ml-stats">
+            <div class="stat-card" data-stat>
+              <div class="stat-value">&le; 1%</div>
+              <div class="stat-label">EER</div>
+              <div class="stat-sublabel">Equal Error Rate</div>
+            </div>
+            <div class="stat-card" data-stat>
+              <div class="stat-value">&gt; 95%</div>
+              <div class="stat-label">TAR @ FAR 0.1%</div>
+              <div class="stat-sublabel">True Accept Rate</div>
+            </div>
+            <div class="stat-card" data-stat>
+              <div class="stat-value">&gt; 90%</div>
+              <div class="stat-label">TAR @ FAR 0.01%</div>
+              <div class="stat-sublabel">High Security</div>
+            </div>
+            <div class="stat-card" data-stat>
+              <div class="stat-value">128-d</div>
+              <div class="stat-label">Embedding</div>
+              <div class="stat-sublabel">L2-normalized</div>
+            </div>
+            <div class="stat-card" data-stat>
+              <div class="stat-value">&lt; 200ms</div>
+              <div class="stat-label">Latensi</div>
+              <div class="stat-sublabel">End-to-end</div>
+            </div>
+            <div class="stat-card" data-stat>
+              <div class="stat-value">5</div>
+              <div class="stat-label">Template</div>
+              <div class="stat-sublabel">Per pengguna</div>
+            </div>
+          </div>
+        </section>
+
+        <div class="section-connector" id="conn4">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+        </div>
+
+        <!-- ═══════════════ USE CASES ═══════════════ -->
+        <section class="surface-card" style="margin-bottom: var(--space-8)" id="sec-usecases">
+          <div class="section-eyebrow">DEMO MODULES</div>
+          <h2 class="section-title">Skenario Penggunaan</h2>
+          <p class="section-desc">
+            PalmID mengimplementasikan beberapa modul demo untuk menunjukkan versatilitas 
+            sistem biometrik telapak tangan di berbagai industri.
+          </p>
+
+          <div class="usecase-grid">
+            <div class="usecase-card" data-uc>
+              <div class="usecase-icon">💳</div>
+              <h4>Palm Payment</h4>
+              <p>Pembayaran tanpa sentuh di kasir. Identifikasi → konfirmasi → debit saldo secara otomatis.</p>
+            </div>
+            <div class="usecase-card" data-uc>
+              <div class="usecase-icon">📋</div>
+              <h4>Absensi</h4>
+              <p>Check-in / check-out kehadiran. Mencatat waktu masuk dan keluar secara biometrik.</p>
+            </div>
+            <div class="usecase-card" data-uc>
+              <div class="usecase-icon">🏥</div>
+              <h4>Patient Check-in</h4>
+              <p>Registrasi pasien di rumah sakit. Identifikasi cepat tanpa kartu, privasi data terjaga.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══════════════ TECH STACK ═══════════════ -->
+        <section class="surface-card" style="margin-bottom: var(--space-8)" id="sec-stack">
+          <div class="section-eyebrow">TECHNOLOGY STACK</div>
+          <h2 class="section-title">Teknologi yang Digunakan</h2>
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top: var(--space-4);">
+            <span class="tech-badge blue">Python 3.10+</span>
+            <span class="tech-badge blue">PyTorch</span>
+            <span class="tech-badge blue">TorchScript</span>
+            <span class="tech-badge green">MediaPipe</span>
+            <span class="tech-badge green">OpenCV</span>
+            <span class="tech-badge yellow">FastAPI</span>
+            <span class="tech-badge yellow">SQLAlchemy</span>
+            <span class="tech-badge yellow">SQLite</span>
+            <span class="tech-badge yellow">Pydantic</span>
+            <span class="tech-badge neutral">Vanilla JavaScript</span>
+            <span class="tech-badge neutral">CSS3</span>
+            <span class="tech-badge neutral">Webcam API</span>
+            <span class="tech-badge red">NumPy</span>
+            <span class="tech-badge red">scikit-learn</span>
+            <span class="tech-badge red">Pillow</span>
+          </div>
+        </section>
+
+      </div>
+    </main>
+
+    <div id="toast-container"></div>
+
+    <!-- ── Pipeline Detail Modal ────────────────── -->
+    <div class="flow-modal-overlay" id="flow-modal" aria-hidden="true" role="dialog">
+      <div class="flow-modal-card">
+        <div class="flow-modal-header">
+          <span class="flow-modal-stage" id="modal-stage">STAGE</span>
+          <button class="flow-modal-close" id="modal-close-btn" aria-label="Tutup Detail">&times;</button>
+        </div>
+        <div class="flow-modal-body">
+          <div class="flow-modal-title-row">
+            <span class="flow-modal-icon" id="modal-icon">🤖</span>
+            <h3 class="flow-modal-title" id="modal-title">Nama Proses</h3>
+          </div>
+          <p class="flow-modal-desc" id="modal-desc">Deskripsi detail proses...</p>
+          
+          <div class="flow-modal-tech-box">
+            <div class="flow-modal-tech-title">Spesifikasi Teknis</div>
+            <ul class="flow-modal-tech-list" id="modal-tech-list">
+              <li>Item 1</li>
+            </ul>
+          </div>
+          
+          <div class="flow-modal-meta-row">
+            <div class="flow-modal-meta-card">
+              <div class="flow-modal-meta-label">Metrik / Latency</div>
+              <div class="flow-modal-meta-value latency" id="modal-latency">~15ms</div>
+            </div>
+            <div class="flow-modal-meta-card">
+              <div class="flow-modal-meta-label">Security / Access Level</div>
+              <div class="flow-modal-meta-value" id="modal-security">Standard</div>
+            </div>
+          </div>
+          
+          <div class="flow-modal-importance" id="modal-importance">
+            Penting karena...
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { mountNavbar } from "./js/components/navbar.js";
+      mountNavbar();
+
+      const FLOW_DETAILS = {
+        INPUT: {
+          stage: "Webcam Capture",
+          stageClass: "stage-capture",
+          icon: "📸",
+          title: "Webcam Frame Capture",
+          desc: "Proses pengambilan data citra mentah dari webcam secara real-time. Bingkai gambar (frame) ini menjadi bahan baku utama yang akan diproses oleh seluruh modul sistem pengenalan biometrik.",
+          tech: [
+            "Metode Capture: navigator.mediaDevices.getUserMedia() mengambil aliran video (stream) langsung dari sensor kamera.",
+            "Format Citra: Portrait mode (480x640 piksel) untuk mempermudah pemindaian telapak tangan secara vertikal.",
+            "Kompresi Data: Citra dikonpresi sebagai JPEG Blob di memori RAM browser guna mempercepat proses transmisi data."
+          ],
+          latency: "~5ms (Sisi Klien)",
+          security: "Low (Local Stream)",
+          importance: "Menangkap data input mentah dengan kualitas pencahayaan dan fokus yang memadai sebagai fondasi utama analisis."
+        },
+        S1A: {
+          stage: "Stage 1 — Detection",
+          stageClass: "stage-1",
+          icon: "🤖",
+          title: "MediaPipe Hand Landmarker",
+          desc: "Model kecerdasan buatan berbasis deep learning yang dilatih khusus untuk melacak keberadaan objek tangan secara langsung (real-time).",
+          tech: [
+            "Model Machine Learning: TensorFlow Lite (TFLite) MobileNetV2 + Single Shot Detector (SSD) yang dioptimalkan untuk performa browser.",
+            "Resolusi Pemrosesan: Citra asli diperkecil secara internal ke resolusi 256x256 piksel sebelum diumpankan ke model.",
+            "Akurasi Pelacakan: Mampu mendeteksi tangan dengan tingkat kepercayaan (confidence score) spasial yang sangat tinggi."
+          ],
+          latency: "~15ms - 30ms",
+          security: "Medium (AI Inference)",
+          importance: "Sebagai saringan awal untuk memverifikasi apakah benar ada objek tangan di depan kamera sebelum menjalankan model biometrik yang lebih berat."
+        },
+        S1B: {
+          stage: "Stage 1 — Detection",
+          stageClass: "stage-1",
+          icon: "🖐",
+          title: "21 Landmark Keypoints",
+          desc: "Pemetaan struktur geometri fisik tangan menjadi 21 titik koordinat spasial 3D (x, y, z) yang mewakili sendi jari dan batas telapak tangan.",
+          tech: [
+            "Struktur Koordinat: Array 21 koordinat spasial yang dinormalisasi ke rentang [0.0, 1.0] terhadap lebar/tinggi gambar.",
+            "Titik Kunci ROI: Landmark 5 (pangkal telunjuk), Landmark 17 (pangkal kelingking), dan Landmark 0 (pergelangan tangan).",
+            "Estimasikan Kedalaman: Nilai koordinat Z digunakan untuk memperkirakan jarak relatif tangan ke sensor kamera."
+          ],
+          latency: "< 1ms",
+          security: "Standard",
+          importance: "Menyediakan informasi geometri spasial tangan untuk menghitung sudut kemiringan dan meluruskan posisi telapak tangan."
+        },
+        S1C: {
+          stage: "Stage 1 — Detection",
+          stageClass: "stage-1",
+          icon: "🛡️",
+          title: "Quality Gate Validation",
+          desc: "Penyaring kualitas gambar otomatis yang mematikan agar hanya citra telapak tangan yang tajam, cukup dekat, dan tegak yang akan diproses.",
+          tech: [
+            "Deteksi Gambar Kabur: Menggunakan algoritma Laplacian Variance. Gambar dengan nilai di bawah 50 akan ditolak karena dianggap buram (blur).",
+            "Validasi Skala Jarak: Mengukur jarak antar koordinat sendi tangan untuk memastikan area tangan mencakup minimal 25% area layar.",
+            "Uji Pose (Directional): Algoritma matematika memastikan telapak tangan terbuka penuh dan menghadap lurus ke kamera, bukan punggung tangan."
+          ],
+          latency: "~2ms",
+          security: "High Gate (Filter Kualitas)",
+          importance: "Mencegah fenomena 'Garbage In, Garbage Out'—memastikan sistem tidak membuang daya komputasi untuk memproses gambar berkualitas rendah."
+        },
+        R1: {
+          stage: "Stage 2a — ROI",
+          stageClass: "stage-2a",
+          icon: "📐",
+          title: "Valley Line Reference",
+          desc: "Membuat garis dasar imajiner antara lembah pangkal jari telunjuk dan jari kelingking untuk menghitung sudut kemiringan tangan.",
+          tech: [
+            "Titik Geometri: Menghubungkan Landmark 5 (Index Finger MCP) dengan Landmark 17 (Pinky Finger MCP).",
+            "Kalkulasi Sudut: Menggunakan fungsi trigonometri Math.atan2(dy, dx) untuk mendapatkan sudut rotasi dalam satuan derajat.",
+            "Toleransi Posisi: Mampu membaca rotasi tangan pengguna secara dinamis hingga sudut kemiringan ekstrem."
+          ],
+          latency: "< 1ms",
+          security: "Standard",
+          importance: "Menjadi referensi utama untuk meluruskan gambar telapak tangan, memastikan pemindaian selalu tegak lurus sempurna."
+        },
+        R2: {
+          stage: "Stage 2a — ROI",
+          stageClass: "stage-2a",
+          icon: "✂️",
+          title: "Rotate & Crop ROI",
+          desc: "Memutar gambar asli sesuai sudut Valley Line agar lurus sempurna, kemudian memotong area berbentuk kotak yang hanya berisi bagian tengah telapak tangan.",
+          tech: [
+            "Transformasi Affine: Menggunakan matriks transformasi cv2.getRotationMatrix2D dan cv2.warpAffine untuk merotasi piksel.",
+            "Pusat Area (Center): Mengambil titik tengah Valley Line lalu diturunkan 30% ke arah pergelangan tangan (wrist) untuk memfokuskan pemotongan.",
+            "Dimensi Kotak (Bounding Box): Ukuran kotak disesuaikan secara dinamis sebesar 1.2 kali jarak garis Valley Line."
+          ],
+          latency: "~5ms",
+          security: "Standard",
+          importance: "Menghilangkan latar belakang, bayangan luar, dan jari-jari tangan agar mesin AI hanya memproses guratan telapak tangan utama."
+        },
+        R3: {
+          stage: "Stage 2a — ROI",
+          stageClass: "stage-2a",
+          icon: "🖼️",
+          title: "112×112 RGB ROI",
+          desc: "Citra hasil potongan (crop) area telapak tangan yang telah dinormalisasi ke ukuran dimensi piksel standar biometrik.",
+          tech: [
+            "Dimensi Gambar: Resolusi tetap sebesar 112x112 piksel.",
+            "Format Warna: Komposisi 3-channel RGB (Red, Green, Blue).",
+            "Metode Pengecilan: Menggunakan interpolasi cv2.INTER_AREA untuk memperkecil gambar tanpa merusak ketajaman detail garis halus."
+          ],
+          latency: "< 1ms",
+          security: "Standard",
+          importance: "Menghasilkan format gambar seragam yang siap dikonsumsi langsung oleh neural network model ekstraksi fitur biometrik."
+        },
+        E1: {
+          stage: "Stage 2b — Embedding",
+          stageClass: "stage-2b",
+          icon: "📊",
+          title: "Input Normalization",
+          desc: "Menyesuaikan rentang nilai warna piksel gambar dari format standar layar komputer menjadi format desimal yang dipahami oleh model kecerdasan buatan.",
+          tech: [
+            "Rentang Nilai: Mengubah nilai piksel integer [0, 255] menjadi bilangan desimal float [-1.0, 1.0].",
+            "Rumus Matematika: Normalisasi piksel menggunakan formula: (Nilai Piksel / 255.0 - mean) / std.",
+            "Parameter Statis: Nilai mean (rata-rata) = 0.5 dan std (standar deviasi) = 0.5 diterapkan pada setiap channel warna."
+          ],
+          latency: "< 1ms",
+          security: "Standard",
+          importance: "Meningkatkan stabilitas aktivasi neural network, mempercepat waktu komputasi, dan meningkatkan akurasi inferensi."
+        },
+        E2: {
+          stage: "Stage 2b — Embedding",
+          stageClass: "stage-2b",
+          icon: "🧬",
+          title: "MobileFaceNet Backbone",
+          desc: "Model jaringan saraf tiruan (CNN) berukuran sangat ringkas yang dilatih khusus untuk mengekstrak ciri-ciri guratan khas telapak tangan.",
+          tech: [
+            "Struktur Jaringan: Memakai Global Depthwise Convolution (GDC) untuk menggantikan linear layer biasa agar hemat memori.",
+            "Transfer Learning: Model dasar dilatih pada jutaan wajah (MS-Celeb-1M) lalu dilatih ulang (fine-tuning) khusus pada dataset telapak tangan Tongji.",
+            "Format Ekspor: Disimpan dalam format TorchScript (.pt) dan dimuat sekali saja ke memori server saat startup untuk performa inferensi maksimal."
+          ],
+          latency: "~25ms - 40ms",
+          security: "High (Model Encrypted)",
+          importance: "Mampu membedakan pola guratan telapak tangan yang sangat mirip dengan tingkat presisi tinggi menggunakan daya komputasi minimal."
+        },
+        E3: {
+          stage: "Stage 2b — Embedding",
+          stageClass: "stage-2b",
+          icon: "🔢",
+          title: "128-dim Embedding Vector",
+          desc: "Hasil ekstraksi guratan unik telapak tangan yang diterjemahkan menjadi barisan 128 angka desimal. Vektor ini bertindak sebagai 'sidik jari digital' telapak tangan Anda.",
+          tech: [
+            "Struktur Data: Array satu dimensi berisi 128 nilai desimal float32.",
+            "Normalisasi L2: Vektor dinormalisasi sehingga memiliki panjang unit = 1.0 (mempermudah perhitungan kemiripan).",
+            "Keamanan Privasi: Merupakan fungsi hash biometrik satu arah. Foto asli telapak tangan tidak dapat direkonstruksi kembali dari vektor angka ini."
+          ],
+          latency: "< 1ms",
+          security: "Very High (Privacy Protected)",
+          importance: "Mengubah data gambar telapak tangan yang sensitif menjadi representasi kode numerik ringkas yang sangat aman untuk dicocokkan."
+        },
+        M1: {
+          stage: "Stage 3 — Matching",
+          stageClass: "stage-3",
+          icon: "🚀",
+          title: "In-Memory Cache",
+          desc: "Penyimpanan sementara berkecepatan tinggi di dalam memori RAM backend yang menyimpan seluruh embedding pengguna terdaftar.",
+          tech: [
+            "Struktur RAM: Kamus data (dictionary) yang memetakan User ID ke daftar matriks embedding NumPy berdimensi [N x 128].",
+            "Siklus Warming: Cache dibangun otomatis dengan membaca seluruh data embedding dari database SQLite saat server pertama kali menyala.",
+            "Sinkronisasi Instan: Otomatis disinkronkan di RAM begitu ada penambahan atau penghapusan pengguna di database."
+          ],
+          latency: "< 0.1ms",
+          security: "High Speed RAM",
+          importance: "Menghindari proses query harddisk database SQLite yang lambat saat pemindaian real-time, memastikan verifikasi sub-milidetik."
+        },
+        M2: {
+          stage: "Stage 3 — Matching",
+          stageClass: "stage-3",
+          icon: "📐",
+          title: "Cosine Similarity",
+          desc: "Metrik matematika untuk mengukur derajat kemiripan arah antara vektor query (input kamera) dengan vektor template di database.",
+          tech: [
+            "Konsep Geometri: Menghitung nilai kosinus dari sudut antara dua vektor di ruang multidimensi 128-dimensi.",
+            "Kalkulasi Cepat: Cukup berupa operasi dot product (perkalian matriks) sederhana karena kedua vektor telah melewati normalisasi L2.",
+            "Skala Nilai: Output berkisar antara -1.0 (sangat tidak mirip) hingga 1.0 (identik sempurna)."
+          ],
+          latency: "< 0.5ms",
+          security: "Standard",
+          importance: "Menyediakan metode pencocokan biometrik yang paling cepat dan akurat secara matematis untuk membandingkan embedding numerik."
+        },
+        M3: {
+          stage: "Stage 3 — Matching",
+          stageClass: "stage-3",
+          icon: "👥",
+          title: "Top-3 Average Matching",
+          desc: "Strategi komparasi biometrik dengan membandingkan input telapak tangan terhadap 5 template terdaftar, lalu menghitung rata-rata dari 3 skor kecocokan tertinggi.",
+          tech: [
+            "Jumlah Contoh: Setiap pengguna terdaftar memiliki 5 contoh template telapak tangan yang disimpan saat enrollment.",
+            "Algoritma Rata-rata: Mencocokkan input dengan 5 template, mengurutkannya dari yang terbaik, lalu merata-rata 3 skor teratas.",
+            "Ketahanan Variasi: Sangat toleran terhadap sedikit pergeseran posisi tangan, perubahan sudut, atau perubahan pencahayaan minor."
+          ],
+          latency: "< 0.2ms",
+          security: "Biometric Standard",
+          importance: "Meningkatkan akurasi identifikasi secara signifikan dan menekan angka kegagalan pemindaian pada pengguna asli."
+        },
+        M4: {
+          stage: "Stage 3 — Matching",
+          stageClass: "stage-3",
+          icon: "⚖️",
+          title: "Threshold Verification Gate",
+          desc: "Benteng evaluasi keputusan biometrik untuk memastikan apakah skor kecocokan telapak tangan memenuhi standar keamanan minimum.",
+          tech: [
+            "Nilai Threshold: Ditetapkan secara ketat pada nilai 0.70 berdasarkan uji kurva biometrik.",
+            "Logika Keputusan: Rata-rata skor >= 0.70 diterima sebagai dikenal (identified), skor < 0.70 ditolak dan dianggap tidak dikenal (unknown).",
+            "Kalibrasi Keamanan: Mengacu pada metrik EER (Equal Error Rate <= 1%) untuk menjamin privasi pengguna."
+          ],
+          latency: "< 0.1ms",
+          security: "Critical Security Guard",
+          importance: "Benteng pertahanan utama sistem biometrik. Mencegah orang asing masuk (False Accept) dan memastikan pemilik asli mudah dikenali."
+        },
+        M5: {
+          stage: "Stage 3 — Matching",
+          stageClass: "stage-3",
+          icon: "🟢",
+          title: "Status: Identified (Dikenal)",
+          desc: "Hasil keputusan sistem biometrik yang menyatakan bahwa telapak tangan yang dipindai cocok dengan pengguna terdaftar.",
+          tech: [
+            "Metadata Respons: Mengembalikan ID pengguna, nama lengkap, skor kecocokan akhir, dan total waktu latensi komputasi.",
+            "Pencatatan Audit (Logs): Menyimpan riwayat akses sukses (waktu, jenis demo, dan skor) ke database log untuk keperluan audit keamanan."
+          ],
+          latency: "< 1ms",
+          security: "Authorized (Akses Diterima)",
+          importance: "Memberikan status otorisasi sukses ke sistem aplikasi frontend untuk membuka akses atau memproses transaksi."
+        },
+        M6: {
+          stage: "Stage 3 — Matching",
+          stageClass: "stage-3",
+          icon: "🔴",
+          title: "Status: Unknown (Tidak Dikenal)",
+          desc: "Keputusan penolakan sistem biometrik karena telapak tangan yang dipindai tidak memiliki kecocokan di atas ambang batas (threshold).",
+          tech: [
+            "Respons Keamanan: Mengirimkan status 'unknown' dengan data pengguna bernilai kosong (null).",
+            "Manajemen Akses: Memblokir seluruh proses otorisasi secara instan dan mencatat aktivitas akses yang tidak sah ini ke log server."
+          ],
+          latency: "< 1ms",
+          security: "Denied / Unauthorized",
+          importance: "Melindungi privasi dan integritas sistem dari ancaman penyusup atau upaya manipulasi biometrik."
+        },
+        RESP: {
+          stage: "API Response",
+          stageClass: "stage-resp",
+          icon: "📥",
+          title: "JSON Output Response",
+          desc: "Format paket data terstandardisasi hasil pemindaian biometrik yang dikirimkan oleh backend FastAPI kembali ke aplikasi web browser.",
+          tech: [
+            "Struktur Data: Format JavaScript Object Notation (JSON).",
+            "Isi Payload: Menyediakan informasi status (identified/unknown), data pengguna (ID, nama), skor kecocokan, dan latensi komputasi.",
+            "Integrasi Klien: Frontend membaca data JSON ini untuk merender animasi status sukses atau menampilkan pesan kesalahan secara interaktif."
+          ],
+          latency: "< 1ms",
+          security: "REST API Guard",
+          importance: "Menyediakan kontrak API yang stabil, cepat, dan ringan untuk menjamin kemudahan integrasi dengan aplikasi client."
+        },
+        DS: {
+          stage: "Offline Pipeline",
+          stageClass: "stage-capture",
+          icon: "📁",
+          title: "Dataset Tongji Contactless",
+          desc: "Kumpulan data citra biometrik telapak tangan contactless standar akademis yang digunakan untuk melatih dan mengevaluasi model AI.",
+          tech: [
+            "Skala Dataset: Berisi 12.000 citra telapak tangan berkualitas tinggi.",
+            "Jumlah Subjek: Diambil dari 300 individu unik (terdiri dari 600 telapak tangan kiri dan kanan yang berbeda).",
+            "Variasi Sesi: Pengambilan data dilakukan dalam 2 sesi terpisah dengan perbedaan pencahayaan alami dan pose tangan yang acak."
+          ],
+          latency: "N/A (Proses Offline)",
+          security: "Academic Standard Dataset",
+          importance: "Menyediakan variasi pola guratan telapak tangan manusia yang sangat kaya agar model kecerdasan buatan dapat mengenali tangan secara umum (generalisasi)."
+        },
+        TR: {
+          stage: "Offline Pipeline",
+          stageClass: "stage-capture",
+          icon: "🏋️",
+          title: "Model Fine-Tuning",
+          desc: "Proses pelatihan ulang jaringan saraf tiruan MobileFaceNet menggunakan fungsi kerugian (Loss Function) ArcFace pada dataset Tongji.",
+          tech: [
+            "Fungsi Kerugian: ArcFace (Additive Angular Margin Loss) untuk memaksimalkan jarak spasial antar pola telapak tangan yang berbeda.",
+            "Algoritma Optimasi: Stochastic Gradient Descent (SGD) dengan momentum 0.9 dan parameter weight decay 5e-4.",
+            "Metode Training: Berjalan sebanyak 50 siklus penuh (epochs) menggunakan kartu pengolah grafis (GPU) performa tinggi."
+          ],
+          latency: "~4 Jam (GPU Training)",
+          security: "R&D Development Stage",
+          importance: "Melatih model AI agar peka dan mampu mengenali guratan halus telapak tangan dengan memetakan ciri yang mirip secara berdekatan."
+        },
+        EVAL: {
+          stage: "Offline Pipeline",
+          stageClass: "stage-capture",
+          icon: "📈",
+          title: "Evaluasi & Kalibrasi",
+          desc: "Mengukur kinerja deteksi dan pengenalan model biometrik pada data uji (test set) untuk menentukan batas threshold aman.",
+          tech: [
+            "Metrik Penilaian: Equal Error Rate (EER), True Accept Rate (TAR) pada FAR 0.1% dan 0.01%.",
+            "Target Kinerja: Mencapai tingkat akurasi pencocokan >= 95% dengan nilai error EER <= 1%.",
+            "Titik Keseimbangan: Kalibrasi titik temu False Accept Rate (salah mengenali penyusup) dan False Reject Rate (salah menolak pengguna asli)."
+          ],
+          latency: "N/A (Proses Offline)",
+          security: "Validation Gate",
+          importance: "Memastikan performa model biometrik teruji secara empiris sebelum dideploy ke lingkungan produksi."
+        },
+        ART: {
+          stage: "Offline Pipeline",
+          stageClass: "stage-capture",
+          icon: "💾",
+          title: "ML Model Artifacts",
+          desc: "File-file hasil pembekuan (freeze) model kecerdasan buatan yang siap dipasang langsung pada server aplikasi web.",
+          tech: [
+            "Model Utama: palm_recognizer.pt yang diekspor menggunakan format portabel PyTorch TorchScript.",
+            "Konfigurasi Parameter: threshold.json menyimpan nilai ambang batas keamanan (0.70) hasil kalibrasi statistik.",
+            "Portabilitas: Dapat dijalankan langsung di server mana pun tanpa memerlukan kode pelatihan atau instalasi dependensi riset yang rumit."
+          ],
+          latency: "N/A (File Statis)",
+          security: "Production Ready",
+          importance: "Menghubungkan hasil penelitian riset kecerdasan buatan (R&D) langsung menjadi modul siap pakai pada aplikasi web."
+        },
+        API: {
+          stage: "Backend API",
+          stageClass: "stage-2b",
+          icon: "⚡",
+          title: "FastAPI REST API",
+          desc: "Server backend Python berkinerja tinggi yang menyediakan gerbang komunikasi asinkron bagi frontend browser.",
+          tech: [
+            "Framework Backend: FastAPI (Python 3.10+) yang berjalan di atas server Uvicorn.",
+            "Endpoint Utama: Menyediakan endpoint untuk pendaftaran (/users), template pendaftaran (/templates), pemindaian (/identify), dan riwayat (/demo-logs).",
+            "Dokumentasi API: Dilengkapi Swagger UI otomatis (/docs) untuk mempermudah uji integrasi."
+          ],
+          latency: "~2ms - 5ms (Jaringan Lokal)",
+          security: "SSL / CORS Protected",
+          importance: "Sebagai penghubung utama yang sangat cepat dan aman untuk menerima unggahan gambar dan memberikan jawaban biometrik."
+        },
+        ML: {
+          stage: "Backend ML",
+          stageClass: "stage-2a",
+          icon: "🧠",
+          title: "Runtime Inference Pipeline",
+          desc: "Rangkaian alur pemrosesan gambar telapak tangan di sisi server secara berurutan dalam hitungan milidetik saat menerima permintaan identifikasi.",
+          tech: [
+            "Deteksi Landmarks: Memanggil modul MediaPipe Hand Landmarker untuk melacak koordinat tangan.",
+            "Ekstraksi Embedding: Menjalankan model TorchScript (.pt) menggunakan PyTorch CPU/GPU inference engine.",
+            "Kalkulasi Kecocokan: Membandingkan embedding query dengan cache menggunakan multi-template cosine similarity."
+          ],
+          latency: "~50ms - 80ms (E2E Server)",
+          security: "Internal Server Only",
+          importance: "Menjalankan seluruh komputasi berat pengolahan citra dan kecerdasan buatan secara aman di sisi server."
+        },
+        DB: {
+          stage: "Database",
+          stageClass: "stage-3",
+          icon: "🗄️",
+          title: "SQLite Database",
+          desc: "Penyimpanan persisten lokal untuk menyimpan metadata pengguna terdaftar beserta data biner biometrik.",
+          tech: [
+            "Engine Database: SQLite3 yang sangat ringan dan tidak memerlukan server database terpisah.",
+            "Skema Penyimpanan: Tabel `users` (ID, nama, waktu terdaftar) dan tabel `templates` (User ID, data biner embedding BLOB).",
+            "Keamanan Penyimpanan: Vektor embedding disimpan sebagai objek biner terkompresi (BLOB) untuk menjaga kerahasiaan."
+          ],
+          latency: "~1ms - 3ms (Query)",
+          security: "Local Storage (Encrypted)",
+          importance: "Bertindak sebagai sumber kebenaran data utama (source of truth) utama yang bersifat permanen bagi sistem biometrik."
+        },
+        CACHE: {
+          stage: "In-Memory Cache",
+          stageClass: "stage-3",
+          icon: "🚀",
+          title: "Embedding Cache",
+          desc: "Salinan data embedding pengguna terdaftar yang disimpan langsung pada memori RAM server untuk pencocokan instan.",
+          tech: [
+            "Format Cache: Variabel dict di RAM Python yang menyimpan matriks multidimensi NumPy.",
+            "Siklus Hidup: Dibangun (warm up) saat aplikasi backend pertama kali menyala, dan disinkronkan otomatis jika ada perubahan data user.",
+            "Skalabilitas: Mampu melayani ribuan pencocokan biometrik dalam waktu kurang dari satu milidetik."
+          ],
+          latency: "< 0.1ms",
+          security: "RAM Only (Volatile)",
+          importance: "Membasmi latensi pembacaan harddisk database SQLite, memungkinkan sistem merespons hasil identifikasi secepat kilat."
+        },
+        WEB: {
+          stage: "Frontend Web App",
+          stageClass: "stage-capture",
+          icon: "🖥️",
+          title: "Frontend Web Client",
+          desc: "Antarmuka aplikasi web interaktif tempat pengguna melakukan proses pendaftaran dan mencoba modul-modul demo.",
+          tech: [
+            "Arsitektur Frontend: Vanilla JavaScript (ES6 Modules) + CSS3 dengan adaptasi Glass-box Design.",
+            "Komponen Utama: WebcamCapture (akses kamera), PalmScanner (instruksi visual), dan DiagnosticTerminal (log ML transparan).",
+            "Responsivitas: Sepenuhnya dirancang responsif agar dapat menyesuaikan diri di layar mobile maupun komputer."
+          ],
+          latency: "N/A (Sisi Klien)",
+          security: "Browser Sandbox",
+          importance: "Menyediakan antarmuka interaktif yang indah, premium, dan intuitif untuk memandu pengguna memposisikan tangan dengan benar."
+        },
+        CAM: {
+          stage: "Webcam API",
+          stageClass: "stage-capture",
+          icon: "🎥",
+          title: "Webcam API (getUserMedia)",
+          desc: "API bawaan peramban (browser) modern untuk mengambil aliran video langsung dari kamera perangkat pengguna.",
+          tech: [
+            "Panggilan API: navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }).",
+            "Kebijakan Privasi: Wajib memunculkan kotak persetujuan akses kamera (permission prompt) demi perlindungan privasi pengguna.",
+            "Aliran Citra: Mengalirkan stream video mentah secara real-time ke elemen HTML5 <video>."
+          ],
+          latency: "N/A",
+          security: "User Permission Sandbox",
+          importance: "Pintu masuk utama untuk memperoleh citra telapak tangan pengguna secara contactless (tanpa sentuh)."
+        },
+        USER: {
+          stage: "End User",
+          stageClass: "stage-resp",
+          icon: "👤",
+          title: "Pengguna Akhir (User)",
+          desc: "Subjek manusia pemilik guratan telapak tangan biometrik yang berinteraksi langsung dengan sistem.",
+          tech: [
+            "Interaksi Fisik: Mengarahkan telapak tangan ke webcam tanpa menyentuh apa pun (contactless).",
+            "Proses Umpan Balik: Membaca instruksi dinamis pada layar (contoh: 'Dekatkan tangan', 'Tahan posisi') untuk mendapatkan citra telapak terbaik."
+          ],
+          latency: "N/A",
+          security: "Biometric Owner",
+          importance: "Pemilik mutlak data sidik guratan telapak tangan unik yang diverifikasi oleh sistem biometrik."
+        }
+      };
+
+      const modal = document.getElementById("flow-modal");
+      const closeBtn = document.getElementById("modal-close-btn");
+
+      function closeModal() {
+        if (!modal) return;
+        modal.classList.remove("is-active");
+        document.body.style.overflow = ""; // Re-enable body scroll
+        
+        // Clean up any remaining inline styles to let CSS transitions control layout
+        modal.style.backgroundColor = "";
+        const cardEl = modal.querySelector(".flow-modal-card");
+        if (cardEl) {
+          cardEl.style.opacity = "";
+          cardEl.style.transform = "";
+        }
+      }
+
+      if (closeBtn) closeBtn.addEventListener("click", closeModal);
+      if (modal) {
+        modal.addEventListener("click", (e) => {
+          if (e.target === modal) closeModal();
+        });
+      }
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closeModal();
+      });
+
+      // Native event delegation for Mermaid SVG clicks (highly reliable fallback)
+      document.addEventListener("click", (e) => {
+        const nodeEl = e.target.closest(".node, .clickable");
+        if (!nodeEl) return;
+        
+        // Only prevent default if clicking an anchor link inside the node to prevent page jump
+        const anchorEl = e.target.closest("a");
+        if (anchorEl) {
+          e.preventDefault();
+        }
+        
+        const idAttr = nodeEl.getAttribute("id") || "";
+        console.log("[Mermaid Click] Click event triggered. Element ID:", idAttr);
+        
+        let nodeId = null;
+        // Match flowchart-[nodeId] (case-insensitive)
+        let match = idAttr.match(/flowchart-([A-Za-z0-9_]+)/i);
+        if (match && match[1]) {
+          nodeId = match[1];
+        } else {
+          // Fallback to match start of ID if no flowchart- prefix
+          match = idAttr.match(/^([A-Za-z0-9_]+)/);
+          if (match && match[1]) {
+            nodeId = match[1];
+          }
+        }
+        
+        if (nodeId) {
+          // Clean Mermaid sequential node ID suffixes (e.g. DS-3 or DS_2 -> DS)
+          const cleanNodeId = nodeId.replace(/_node$|_\d+$|-\d+$/i, "");
+          console.log("[Mermaid Click] Extracted clean Node ID:", cleanNodeId);
+          if (window.showDetail) window.showDetail(cleanNodeId);
+        }
+      });
+
+      window.showDetail = function(nodeId) {
+        console.log("[Mermaid Click] showDetail called with nodeId:", nodeId);
+        if (!nodeId) return;
+        
+        const lookupKey = nodeId.toUpperCase();
+        const details = FLOW_DETAILS[lookupKey];
+        if (!details) {
+          console.warn("[Mermaid Click] No details found for lookup key:", lookupKey);
+          return;
+        }
+        if (!modal) {
+          console.error("[Mermaid Click] Modal container '#flow-modal' not found in DOM");
+          return;
+        }
+
+        // Reset any leftover inline styles from GSAP to prevent style overriding
+        modal.style.backgroundColor = "";
+        const cardEl = modal.querySelector(".flow-modal-card");
+        if (cardEl) {
+          cardEl.style.opacity = "";
+          cardEl.style.transform = "";
+        }
+
+        console.log("[Mermaid Click] Populating modal with details for:", lookupKey, details);
+
+        // Populate elements
+        const stageEl = document.getElementById("modal-stage");
+        if (stageEl) {
+          stageEl.textContent = details.stage;
+          stageEl.className = "flow-modal-stage " + details.stageClass;
+        }
+
+        const iconEl = document.getElementById("modal-icon");
+        if (iconEl) iconEl.textContent = details.icon;
+
+        const titleEl = document.getElementById("modal-title");
+        if (titleEl) titleEl.textContent = details.title;
+
+        const descEl = document.getElementById("modal-desc");
+        if (descEl) descEl.textContent = details.desc;
+
+        const latencyEl = document.getElementById("modal-latency");
+        if (latencyEl) latencyEl.textContent = details.latency;
+
+        const securityEl = document.getElementById("modal-security");
+        if (securityEl) securityEl.textContent = details.security;
+
+        const importanceEl = document.getElementById("modal-importance");
+        if (importanceEl) importanceEl.textContent = details.importance;
+
+        const techListEl = document.getElementById("modal-tech-list");
+        if (techListEl && details.tech) {
+          techListEl.innerHTML = details.tech.map(item => `<li>${item}</li>`).join("");
+        }
+
+        // Disable body scroll when modal opens
+        document.body.style.overflow = "hidden";
+
+        // Show modal by adding class
+        modal.classList.add("is-active");
+      };
+
+      // ── GSAP Animations ──────────────────────────────────
+      gsap.registerPlugin(ScrollTrigger);
+
+      // Hero entrance
+      const heroTl = gsap.timeline({ defaults: { ease: "power3.out" } });
+      heroTl
+        .from(".hero-palm-icon", { scale: 0, rotation: -180, duration: 0.8 })
+        .from(".about-hero h1", { y: 30, opacity: 0, duration: 0.6 }, "-=0.3")
+        .from(".hero-subtitle", { y: 20, opacity: 0, duration: 0.5 }, "-=0.3")
+        .from(".hero-chip", { y: 16, opacity: 0, stagger: 0.1, duration: 0.4 }, "-=0.2");
+
+      // Diagram containers — fade in on scroll
+      gsap.utils.toArray(".diagram-container").forEach(el => {
+        gsap.to(el, {
+          opacity: 1, y: 0, duration: 0.8, ease: "power2.out",
+          scrollTrigger: { trigger: el, start: "top 85%" }
+        });
+      });
+
+      // Architecture cards — stagger
+      gsap.utils.toArray(".arch-card").forEach((el, i) => {
+        gsap.to(el, {
+          opacity: 1, y: 0, duration: 0.6, delay: i * 0.15, ease: "power2.out",
+          scrollTrigger: { trigger: el, start: "top 88%" }
+        });
+      });
+
+      // Section connectors
+      gsap.utils.toArray(".section-connector").forEach(el => {
+        gsap.to(el, {
+          opacity: 1, duration: 0.5,
+          scrollTrigger: { trigger: el, start: "top 90%" }
+        });
+      });
+
+      // Pipeline steps — stagger reveal
+      gsap.utils.toArray("[data-step]").forEach((el, i) => {
+        gsap.to(el, {
+          opacity: 1, y: 0, duration: 0.6, delay: i * 0.1, ease: "power2.out",
+          scrollTrigger: { trigger: el, start: "top 85%" }
+        });
+      });
+
+      // Timeline items
+      gsap.utils.toArray("[data-tl]").forEach((el, i) => {
+        gsap.to(el, {
+          opacity: 1, x: 0, duration: 0.5, delay: i * 0.12, ease: "power2.out",
+          scrollTrigger: { trigger: el, start: "top 88%" }
+        });
+      });
+
+      // Stat cards — pop in
+      gsap.utils.toArray("[data-stat]").forEach((el, i) => {
+        gsap.to(el, {
+          opacity: 1, scale: 1, duration: 0.5, delay: i * 0.08, ease: "back.out(1.4)",
+          scrollTrigger: { trigger: el, start: "top 90%" }
+        });
+      });
+
+      // Use-case cards
+      gsap.utils.toArray("[data-uc]").forEach((el, i) => {
+        gsap.to(el, {
+          opacity: 1, y: 0, duration: 0.5, delay: i * 0.12, ease: "power2.out",
+          scrollTrigger: { trigger: el, start: "top 88%" }
+        });
+      });
+
+      // Tech badges — stagger
+      ScrollTrigger.create({
+        trigger: "#sec-stack",
+        start: "top 85%",
+        onEnter: () => {
+          gsap.from("#sec-stack .tech-badge", {
+            opacity: 0, scale: 0.7, stagger: 0.04, duration: 0.35, ease: "back.out(1.7)"
+          });
+        },
+        once: true
+      });
+    </script>
+  </body>
+</html>

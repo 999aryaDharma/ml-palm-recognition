@@ -14,11 +14,10 @@ const NAV_ITEMS = [
     children: [
       { href: "demo/payment.html", label: "💳 Payment" },
       { href: "demo/attendance.html", label: "📋 Absensi" },
-      { href: "demo/access.html", label: "🚪 Access" },
       { href: "demo/patient.html", label: "🏥 Patient" },
     ],
   },
-  { href: "settings.html", label: "Settings", icon: svgSettings() },
+  { href: "about.html", label: "About", icon: svgAbout() },
 ];
 
 /**
@@ -56,6 +55,7 @@ export function mountNavbar() {
     `;
 
     pollBackendStatus().catch(() => {});
+    initPageTransitions();
   } catch (err) {
     console.error("mountNavbar failed:", err);
   }
@@ -65,8 +65,10 @@ function renderNavItem(item, currentPath, rootPrefix) {
   const isMatch = (href) => {
     if (!href) return false;
     // Simple path matching
-    return currentPath.endsWith(href) || 
-           (currentPath.endsWith("/") && href === "index.html");
+    return (
+      currentPath.endsWith(href) ||
+      (currentPath.endsWith("/") && href === "index.html")
+    );
   };
 
   if (item.children) {
@@ -81,13 +83,16 @@ function renderNavItem(item, currentPath, rootPrefix) {
         <div class="nav-dropdown-menu" role="menu">
           ${item.children
             .map((c) => {
-              // If we're already in demo/ and the target is demo/X, 
+              // If we're already in demo/ and the target is demo/X,
               // we need to adjust the link to just X.html
               let finalHref = rootPrefix + c.href;
-              if (currentPath.includes("/demo/") && c.href.startsWith("demo/")) {
-                  finalHref = c.href.replace("demo/", "");
+              if (
+                currentPath.includes("/demo/") &&
+                c.href.startsWith("demo/")
+              ) {
+                finalHref = c.href.replace("demo/", "");
               }
-              
+
               return `
                 <a href="${finalHref}" class="nav-dropdown-item${isMatch(c.href) ? " active" : ""}" role="menuitem">
                   <span>${c.label}</span>
@@ -116,20 +121,92 @@ async function pollBackendStatus() {
 
   try {
     const { online } = await checkHealth();
-    
+
     statusEl.className = `backend-status backend-status--${online ? "online" : "offline"}`;
     const dot = statusEl.querySelector(".status-dot");
     if (dot) {
       dot.className = `status-dot${online ? " status-dot--pulse" : ""}`;
     }
     labelEl.textContent = online ? "Backend Online" : "Backend Offline";
+
+    // Dispatch status to other page components reactively
+    document.dispatchEvent(
+      new CustomEvent("backend-status-change", { detail: { online } }),
+    );
   } catch (err) {
     statusEl.className = "backend-status backend-status--offline";
     labelEl.textContent = "Backend Offline";
+    document.dispatchEvent(
+      new CustomEvent("backend-status-change", { detail: { online: false } }),
+    );
   }
 
   // Re-poll every 30s instead of 15s to be gentler
   setTimeout(() => pollBackendStatus().catch(() => {}), 30_000);
+}
+
+function initPageTransitions() {
+  if (typeof window === "undefined") return;
+
+  // Add the ready class on load (ensures smooth fade in)
+  requestAnimationFrame(() => {
+    document.body.classList.add("ux-page-ready");
+  });
+
+  if (window.uxTransitionInitialized) return;
+  window.uxTransitionInitialized = true;
+
+  // Create top progress bar if not exists
+  let loader = document.getElementById("ux-top-loader");
+  if (!loader) {
+    loader = document.createElement("div");
+    loader.id = "ux-top-loader";
+    document.body.appendChild(loader);
+  }
+
+  // Intercept anchor clicks for smooth transition
+  document.addEventListener("click", (e) => {
+    const anchor = e.target.closest("a");
+    if (anchor) {
+      const href = anchor.getAttribute("href");
+
+      // Skip if not a regular link or target blank
+      if (
+        !href ||
+        href.startsWith("#") ||
+        href.startsWith("javascript:") ||
+        anchor.target === "_blank" ||
+        anchor.hasAttribute("download") ||
+        anchor.hasAttribute("data-no-transition")
+      ) {
+        return;
+      }
+
+      // Check origin
+      try {
+        const url = new URL(anchor.href, window.location.href);
+        if (url.origin !== window.location.origin) return;
+
+        e.preventDefault();
+
+        // Start progress loader
+        loader.style.width = "40%";
+        setTimeout(() => {
+          loader.style.width = "80%";
+        }, 80);
+
+        // Fade out page body
+        document.body.classList.remove("ux-page-ready");
+
+        setTimeout(() => {
+          loader.style.width = "100%";
+          window.location.href = anchor.href;
+        }, 220); // must match opacity transition duration in ux.css
+      } catch (err) {
+        console.error("Link interception error:", err);
+      }
+    }
+  });
 }
 
 // ── SVG Icons ─────────────────────────────────────────────
@@ -167,8 +244,8 @@ function svgDemo() {
   </svg>`;
 }
 
-function svgSettings() {
+function svgAbout() {
   return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
   </svg>`;
 }

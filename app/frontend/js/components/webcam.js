@@ -26,8 +26,8 @@ export class WebcamCapture {
     this.videoEl = videoEl;
     this.onCapture = opts.onCapture || (() => {});
     this.captureInterval = opts.captureInterval ?? 1500;
-    this.width = opts.width ?? 640;
-    this.height = opts.height ?? 480;
+    this.width = opts.width ?? 480;
+    this.height = opts.height ?? 640;
 
     this.stream = null;
     this._timer = null;
@@ -44,7 +44,7 @@ export class WebcamCapture {
     const constraints = {
       video: {
         facingMode: "user",
-        frameRate: { ideal: 30 },
+        frameRate: { ideal: 30 }
       },
       audio: false,
     };

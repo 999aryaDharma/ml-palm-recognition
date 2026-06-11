@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Enrollment — PalmID</title>
+    <meta name="description" content="Daftarkan pengguna baru dengan biometrik telapak tangan. Sistem akan mengambil 5 sampel unik untuk akurasi terbaik." />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -15,6 +16,7 @@
     <link rel="stylesheet" href="css/base.css" />
     <link rel="stylesheet" href="css/layout.css" />
     <link rel="stylesheet" href="css/components.css" />
+    <link rel="stylesheet" href="css/ux.css" />
     <link rel="stylesheet" href="css/pages/enroll.css" />
   </head>
 
@@ -25,7 +27,10 @@
     <!-- Main -->
     <main class="app-main">
       <div class="container-sm">
-        <!-- Step 1: Input Name -->
+
+        <!-- ══════════════════════════════════════════════ -->
+        <!-- Step 1: Input Nama                           -->
+        <!-- ══════════════════════════════════════════════ -->
         <section
           id="step-name"
           class="enroll-step"
@@ -36,7 +41,7 @@
             <h1 id="title-name">Daftarkan Pengguna Baru</h1>
             <p>
               Masukkan nama lengkap untuk memulai pendaftaran biometrik telapak
-              tangan.
+              tangan. Sistem akan mengambil <strong>5 sampel unik</strong> dari berbagai sudut.
             </p>
           </div>
 
@@ -50,13 +55,26 @@
                 placeholder="Contoh: Budi Santoso"
                 autocomplete="off"
                 required
+                minlength="2"
+                maxlength="80"
               />
               <p class="form-hint">Gunakan nama asli untuk akurasi data.</p>
             </div>
-            
-            <div class="hint-box hint-box--info" style="margin: var(--space-6) 0">
-              <p class="text-xs">
-                <strong>Catatan Privasi:</strong> Data telapak tangan Anda akan diubah menjadi representasi matematika (template) dan tidak disimpan dalam bentuk gambar asli.
+
+            <!-- Enrollment Info Card -->
+            <div class="enroll-info-card">
+              <div class="enroll-info-card__header">
+                <span class="enroll-info-card__icon">🖐</span>
+                <strong>Proses Enrollment (±60 detik)</strong>
+              </div>
+              <ol class="enroll-info-card__steps">
+                <li>Kamera akan menyala otomatis</li>
+                <li>Sistem mengambil <strong>5 sampel</strong> dari posisi berbeda</li>
+                <li>Template biometrik disimpan ke server</li>
+                <li>Verifikasi kelengkapan data</li>
+              </ol>
+              <p class="enroll-info-card__privacy">
+                🔒 <strong>Privasi:</strong> Gambar asli tidak disimpan. Hanya representasi matematis (embedding 128-dimensi) yang tersimpan di database.
               </p>
             </div>
 
@@ -70,95 +88,110 @@
           </form>
         </section>
 
-        <!-- Step 2: Capture Samples -->
+        <!-- ══════════════════════════════════════════════ -->
+        <!-- Step 2: Capture Samples                      -->
+        <!-- ══════════════════════════════════════════════ -->
         <section
           id="step-capture"
           class="enroll-step hidden"
           aria-labelledby="title-capture"
         >
           <div class="page-header">
-            <p class="eyebrow">STAGE 2: SAMPLE CAPTURE</p>
+            <p class="eyebrow" id="capture-eyebrow">STAGE 2 — SAMPLE 1 / 5</p>
             <h1 id="title-capture">Ambil Sampel Telapak</h1>
-            <p>
-              Tunjukkan telapak tangan ke kamera. Sistem akan mengambil 5 sampel
-              secara otomatis.
+            <p id="capture-subtitle">
+              Tunjukkan telapak tangan ke kamera. Sistem akan mengambil 5 sampel dari posisi berbeda secara otomatis.
             </p>
           </div>
 
           <div class="scanner-layout">
-            <!-- Scanner Component -->
-            <div class="scanner" id="scanner-container">
-              <video
-                id="enroll-video"
-                autoplay
-                muted
-                playsinline
-                aria-label="Preview kamera untuk pendaftaran telapak tangan"
-              ></video>
-
-              <!-- Target Bracket -->
-              <div class="scanner__target" id="scanner-target">
-                <svg viewBox="0 0 220 220" fill="none">
-                  <path
-                    d="M40 2H22C10.9543 2 2 10.9543 2 22V40"
-                    stroke="currentColor"
-                    stroke-width="4"
-                    stroke-linecap="round"
-                  />
-                  <path
-                    d="M180 2H198C209.046 2 218 10.9543 218 22V40"
-                    stroke="currentColor"
-                    stroke-width="4"
-                    stroke-linecap="round"
-                  />
-                  <path
-                    d="M40 218H22C10.9543 218 2 209.046 2 198V180"
-                    stroke="currentColor"
-                    stroke-width="4"
-                    stroke-linecap="round"
-                  />
-                  <path
-                    d="M180 218H198C209.046 218 218 209.046 218 198V180"
-                    stroke="currentColor"
-                    stroke-width="4"
-                    stroke-linecap="round"
-                  />
-                </svg>
+            <!-- ── Scanner Column ─────────────────────── -->
+            <div>
+              <!-- Pose Guide Bar -->
+              <div class="pose-guide" id="pose-guide" aria-live="polite">
+                <div class="pose-guide__poses">
+                  <div class="pose-item pose-item--active" data-pose="0">
+                    <div class="pose-item__icon">🖐</div>
+                    <div class="pose-item__label">Lurus</div>
+                  </div>
+                  <div class="pose-item" data-pose="1">
+                    <div class="pose-item__icon">↙</div>
+                    <div class="pose-item__label">Kiri</div>
+                  </div>
+                  <div class="pose-item" data-pose="2">
+                    <div class="pose-item__icon">↗</div>
+                    <div class="pose-item__label">Kanan</div>
+                  </div>
+                  <div class="pose-item" data-pose="3">
+                    <div class="pose-item__icon">⬆</div>
+                    <div class="pose-item__label">Dekat</div>
+                  </div>
+                  <div class="pose-item" data-pose="4">
+                    <div class="pose-item__icon">⬇</div>
+                    <div class="pose-item__label">Jauh</div>
+                  </div>
+                </div>
               </div>
 
-              <!-- Scan Line -->
-              <div class="scanner__scanline hidden" id="scanline"></div>
+              <!-- Scanner Component -->
+              <div class="scanner" id="scanner-container">
+                <video
+                  id="enroll-video"
+                  autoplay
+                  muted
+                  playsinline
+                  aria-label="Preview kamera untuk pendaftaran telapak tangan"
+                ></video>
 
-              <!-- Hint Overlay -->
-              <div
-                class="scanner__hint"
-                id="scanner-hint"
-                role="status"
-                aria-live="polite"
-              >
-                Menghidupkan kamera...
-              </div>
+                <!-- Target Bracket -->
+                <div class="scanner__target" id="scanner-target">
+                  <svg viewBox="0 0 220 220" fill="none">
+                    <path d="M40 2H22C10.9543 2 2 10.9543 2 22V40" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                    <path d="M180 2H198C209.046 2 218 10.9543 218 22V40" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                    <path d="M40 218H22C10.9543 218 2 209.046 2 198V180" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                    <path d="M180 218H198C209.046 218 218 209.046 218 198V180" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                  </svg>
+                </div>
 
-              <!-- Loading Overlay -->
-              <div class="scanner__processing hidden" id="scanner-loading">
-                <div class="spinner"></div>
-                <div class="scanner__processing-label" id="scanner-loading-label">Memproses...</div>
+                <!-- Scan Line -->
+                <div class="scanner__scanline hidden" id="scanline"></div>
+
+                <!-- Sample Number Badge (on scanner) -->
+                <div class="scanner__sample-badge" id="scanner-sample-badge" aria-live="polite">
+                  <span id="scanner-sample-num">1</span>/5
+                </div>
+
+                <!-- Hint Overlay -->
+                <div
+                  class="scanner__hint"
+                  id="scanner-hint"
+                  role="status"
+                  aria-live="polite"
+                >
+                  Menghidupkan kamera...
+                </div>
+
+                <!-- Loading Overlay -->
+                <div class="scanner__processing hidden" id="scanner-loading">
+                  <div class="spinner"></div>
+                  <div class="scanner__processing-label" id="scanner-loading-label">Memeriksa...</div>
+                </div>
+
+                <!-- Quality Hint (error feedback in scanner) -->
+                <div class="capture-quality-hint hidden" id="capture-quality-hint" role="alert" aria-live="assertive"></div>
               </div>
             </div>
 
-            <!-- Progress Panel -->
-            <div class="surface-card">
-              <div
-                class="flex justify-between items-center"
-                style="margin-bottom: var(--space-4)"
-              >
-                <h3 id="progress-title">Progres Sampel</h3>
-                <span class="badge badge--processing" id="sample-count-badge"
-                  >0 / 5</span
-                >
+            <!-- ── Progress Panel Column ──────────────── -->
+            <div class="enroll-panel">
+              <!-- Progress Header -->
+              <div class="enroll-panel__header">
+                <h3>Progres Sampel</h3>
+                <span class="badge badge--scanning" id="sample-count-badge">0 / 5</span>
               </div>
 
-              <div class="progress-stepper" id="sample-stepper">
+              <!-- Step Dots (connector) -->
+              <div class="progress-stepper" role="progressbar" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0" id="sample-stepper-wrapper">
                 <div class="step-dot" data-step="1"></div>
                 <div class="step-dot" data-step="2"></div>
                 <div class="step-dot" data-step="3"></div>
@@ -166,68 +199,131 @@
                 <div class="step-dot" data-step="5"></div>
               </div>
 
-              <p
-                class="text-sm"
-                id="capture-status"
-                style="margin-top: var(--space-4)"
-              >
+              <!-- Sample Thumbnail Grid -->
+              <div class="sample-grid" id="sample-grid" aria-label="Pratinjau sampel yang berhasil diambil">
+                <div class="sample-slot" data-slot="0" id="sample-slot-0">
+                  <div class="sample-slot__number">1</div>
+                  <div class="sample-slot__icon">🖐</div>
+                </div>
+                <div class="sample-slot" data-slot="1" id="sample-slot-1">
+                  <div class="sample-slot__number">2</div>
+                  <div class="sample-slot__icon">↙</div>
+                </div>
+                <div class="sample-slot" data-slot="2" id="sample-slot-2">
+                  <div class="sample-slot__number">3</div>
+                  <div class="sample-slot__icon">↗</div>
+                </div>
+                <div class="sample-slot" data-slot="3" id="sample-slot-3">
+                  <div class="sample-slot__number">4</div>
+                  <div class="sample-slot__icon">⬆</div>
+                </div>
+                <div class="sample-slot" data-slot="4" id="sample-slot-4">
+                  <div class="sample-slot__number">5</div>
+                  <div class="sample-slot__icon">⬇</div>
+                </div>
+              </div>
+
+              <!-- Current Pose Instruction -->
+              <div class="pose-instruction" id="pose-instruction">
+                <div class="pose-instruction__icon" id="pose-instruction-icon">🖐</div>
+                <div>
+                  <div class="pose-instruction__label">Posisi saat ini</div>
+                  <div class="pose-instruction__text" id="pose-instruction-text">Tahan telapak lurus tegak di depan kamera</div>
+                </div>
+              </div>
+
+              <!-- Status text -->
+              <p class="text-sm enroll-panel__status" id="capture-status">
                 Tahan tangan tetap stabil saat sistem mengambil gambar.
               </p>
 
-              <div style="margin-top: var(--space-6)">
-                <button
-                  id="btn-cancel-capture"
-                  class="btn btn--secondary btn--full"
-                >
-                  Batal
-                </button>
-              </div>
+              <!-- Cancel button -->
+              <button id="btn-cancel-capture" class="btn btn--secondary btn--full" style="margin-top: var(--space-4);">
+                Batalkan Enrollment
+              </button>
             </div>
           </div>
         </section>
 
-        <!-- Step 3: Verification -->
+        <!-- ══════════════════════════════════════════════ -->
+        <!-- Step 3: Verifikasi & Upload ke DB            -->
+        <!-- ══════════════════════════════════════════════ -->
         <section id="step-verifying" class="enroll-step hidden text-center">
           <div class="page-header">
-            <h1 id="verifying-title">Memverifikasi...</h1>
+            <p class="eyebrow">STAGE 3 — MENYIMPAN DATA</p>
+            <h1 id="verifying-title">Menyimpan Template...</h1>
             <p>
-              Mohon tunggu sebentar, sistem sedang memvalidasi template
-              biometrik Anda.
+              Sistem sedang mengunggah dan memvalidasi 5 template biometrik ke database. Mohon jangan tutup halaman ini.
             </p>
           </div>
-          <div
-            class="surface-card flex flex-col items-center gap-6"
-            style="padding: var(--space-12)"
-          >
-            <div class="spinner spinner--lg"></div>
-            <p class="text-mono">RUNNING_VERIFICATION_GATE</p>
+
+          <div class="surface-card verify-card">
+            <!-- Progress Bar -->
+            <div class="verify-bar-wrap">
+              <div class="verify-bar-track">
+                <div id="verify-progress-fill" class="verify-bar-fill"></div>
+              </div>
+              <div class="verify-bar-labels">
+                <span id="verify-status-msg" class="text-sm">Mempersiapkan...</span>
+                <span id="verify-pct" class="text-sm font-semibold text-mono">0%</span>
+              </div>
+            </div>
+
+            <!-- Steps List -->
+            <div id="verify-steps-list" role="list" class="verify-steps-list">
+              <!-- populated by JS -->
+            </div>
           </div>
         </section>
 
-        <!-- Step 4: Success -->
+        <!-- ══════════════════════════════════════════════ -->
+        <!-- Step 4: Sukses                               -->
+        <!-- ══════════════════════════════════════════════ -->
         <section id="step-success" class="enroll-step hidden text-center">
-          <div class="surface-card" style="padding: var(--space-12)">
-            <div
-              class="status-icon status-icon--success"
-              style="margin: 0 auto var(--space-6)"
-            >
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <div class="surface-card success-card">
+            <!-- Success Icon -->
+            <div class="status-icon status-icon--success" style="margin: 0 auto var(--space-6);">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
             </div>
-            <h1 style="margin-bottom: var(--space-2)">Enrollment Berhasil!</h1>
-            <p class="text-body-lg" style="margin-bottom: var(--space-8)">
-              Selamat datang, <strong id="success-name">User</strong>. Template
-              biometrik Anda telah siap digunakan.
+
+            <p class="eyebrow" style="margin-bottom:var(--space-2)">ENROLLMENT BERHASIL</p>
+            <h1 style="margin-bottom: var(--space-2);">Selamat Datang!</h1>
+            <p class="text-body-lg" style="margin-bottom: var(--space-4);">
+              <strong id="success-name">User</strong> telah terdaftar di sistem biometrik PalmID.
             </p>
-            <div class="flex flex-col gap-4">
-              <a href="index.html" class="btn btn--primary btn--lg"
-                >Kembali ke Menu Utama</a
-              >
-              <a href="users.html" class="btn btn--secondary"
-                >Lihat Daftar Pengguna</a
-              >
+
+            <!-- Template Count Badge -->
+            <div class="success-meta">
+              <div class="success-meta__item">
+                <span class="success-meta__icon">🗂</span>
+                <span id="success-template-count" class="success-meta__value">5 template tersimpan</span>
+              </div>
+              <div class="success-meta__item">
+                <span class="success-meta__icon">✅</span>
+                <span class="success-meta__value">Siap untuk identifikasi</span>
+              </div>
+            </div>
+
+            <!-- Thumbnail review strip -->
+            <div class="success-thumbs" id="success-thumbs" aria-label="Pratinjau 5 sampel yang berhasil disimpan">
+              <!-- filled by JS -->
+            </div>
+
+            <!-- Actions -->
+            <div class="flex flex-col gap-4" style="max-width: 300px; margin: var(--space-8) auto 0;">
+              <button id="btn-success-done" class="btn btn--primary btn--lg btn--full">
+                Selesai &amp; Kembali ke Dashboard
+              </button>
+              <button id="btn-success-enroll-another" class="btn btn--secondary btn--full">
+                Daftarkan Pengguna Lain
+              </button>
             </div>
           </div>
         </section>
+
       </div>
     </main>
 

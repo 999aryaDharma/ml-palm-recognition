@@ -26,10 +26,25 @@ async function apiFetch(path, options = {}) {
     try {
       errData = await response.json();
     } catch (_) {}
-    const err = new Error(errData.message || `HTTP ${response.status}`);
+    
+    // FastAPI returns errors under "detail". Sometimes "detail" is an object, sometimes a string.
+    let errorDetail = errData.detail;
+    let errCode = "unknown_error";
+    let errMsg = errData.message || `HTTP ${response.status}`;
+
+    if (errorDetail && typeof errorDetail === "object") {
+      errCode = errorDetail.error || errCode;
+      errMsg = errorDetail.message || errMsg;
+    } else if (typeof errorDetail === "string") {
+      errMsg = errorDetail;
+    } else {
+      errCode = errData.error || errCode;
+    }
+
+    const err = new Error(errMsg);
     err.status = response.status;
-    err.error = errData.error || "unknown_error";
-    err.detail = errData.detail || errData.message || "";
+    err.error = errCode;
+    err.detail = errorDetail || errMsg;
     // Note: Browser native fetch will still log a 400 to console, 
     // this is normal and expected for quality gates. We just throw it 
     // so the UI can handle the state.

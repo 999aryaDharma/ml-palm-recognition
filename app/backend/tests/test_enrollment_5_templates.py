@@ -19,7 +19,7 @@ def _make_jpeg_bytes(w=320, h=240) -> bytes:
 class TestEnrollment5Templates:
     """Test that enrollment correctly stores 5 templates."""
     
-    def test_store_5_templates_in_db(self, client, db):
+    def test_store_5_templates_in_db(self, client):
         """
         Regression test: Verify that 5 templates are stored in database.
         This test reproduces the bug where only 1 template was stored.

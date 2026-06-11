@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="../css/base.css" />
     <link rel="stylesheet" href="../css/layout.css" />
     <link rel="stylesheet" href="../css/components.css" />
+    <link rel="stylesheet" href="../css/ux.css" />
   </head>
 
   <body class="app-body">
@@ -147,6 +148,40 @@
               >
                 Aktifkan Scanner Pasien
               </button>
+            </div>
+
+            <!-- Diagnostic Terminal -->
+            <div class="terminal-card" style="margin-top: var(--space-4)">
+              <div class="terminal__header">
+                <div class="terminal__dots" aria-hidden="true">
+                  <div class="terminal__dot"></div>
+                  <div class="terminal__dot"></div>
+                  <div class="terminal__dot"></div>
+                </div>
+                <span class="terminal__title">DIAGNOSTIC_LOG</span>
+              </div>
+              <div
+                class="terminal__body"
+                id="terminal-body"
+                role="log"
+                aria-live="polite"
+                aria-relevant="additions"
+              >
+                <div class="log-line">
+                  <span class="log-time">--:--:--.---</span>
+                  <span class="log-tag log-tag--camera">SYSTEM</span>
+                  <span class="log-msg">Patient module ready.</span>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="demo-grid" style="margin-top: var(--space-6); display: block;">
+          <section class="surface-card">
+            <h3 style="margin-bottom: var(--space-4)">Log Check-in Pasien Terbaru</h3>
+            <div id="patient-log" class="access-logs">
+              <p id="patient-empty-log" class="text-sm text-center text-muted" style="padding: var(--space-4)">Belum ada data check-in hari ini.</p>
             </div>
           </section>
         </div>
