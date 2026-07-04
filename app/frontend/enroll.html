@@ -277,7 +277,39 @@
         </section>
 
         <!-- ══════════════════════════════════════════════ -->
-        <!-- Step 4: Sukses                               -->
+        <!-- Step 4: Profil & Saldo Awal                  -->
+        <!-- ══════════════════════════════════════════════ -->
+        <section id="step-profile" class="enroll-step hidden text-center" aria-labelledby="profile-title">
+          <div class="page-header">
+            <p class="eyebrow">STAGE 4 — DATA DIRI</p>
+            <h1 id="profile-title">Lengkapi Profil</h1>
+            <p>
+              Template biometrik berhasil diverifikasi. Silakan lengkapi data diri dan saldo awal untuk mengaktifkan kantin pintar.
+            </p>
+          </div>
+
+          <form id="form-profile" class="surface-card" style="text-align: left;">
+            <div class="form-group">
+              <label for="input-nik">NIM / NIK / ID</label>
+              <input type="text" id="input-nik" class="input" placeholder="Misal: 12345678" required />
+            </div>
+            <div class="form-group">
+              <label for="input-kelas">Kelas / Jabatan</label>
+              <input type="text" id="input-kelas" class="input" placeholder="Misal: Kelas 10A" required />
+            </div>
+            <div class="form-group">
+              <label for="input-balance">Saldo Awal (Rp)</label>
+              <input type="number" id="input-balance" class="input" placeholder="0" min="0" required />
+            </div>
+            
+            <button type="submit" id="btn-submit-profile" class="btn btn--primary btn--full btn--lg" style="margin-top: var(--space-6);">
+              Simpan & Selesai
+            </button>
+          </form>
+        </section>
+
+        <!-- ══════════════════════════════════════════════ -->
+        <!-- Step 5: Sukses                               -->
         <!-- ══════════════════════════════════════════════ -->
         <section id="step-success" class="enroll-step hidden text-center">
           <div class="surface-card success-card">

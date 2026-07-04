@@ -2,7 +2,7 @@
 // js/pages/attendance.js — Palm Attendance (UX-improved)
 //
 // Perubahan UX:
-// • Entry baru di list muncul with slide-in animation (bukan
+// • Entry baru di list muncul dengan slide-in animation (bukan
 //   tiba-tiba muncul) → user langsung tahu apa yang baru ditambah.
 // • Counter berdetak (count-up) saat naik.
 // • Error retry: kalau submit gagal, kasih modal "Coba lagi"
@@ -93,28 +93,8 @@ async function init() {
   });
 
   window.addEventListener("beforeunload", () => scanner?.stop());
-  
-  let wasScanning = false;
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      wasScanning = scannerStarted;
-      if (scannerStarted) {
-        scanner?.stop();
-        scannerStarted = false;
-      }
-    } else {
-      if (wasScanning) {
-        startScanner();
-      }
-    }
-  });
-
-  // Reactive backend offline protection
-  document.addEventListener("backend-status-change", (e) => {
-    const online = e.detail.online;
-    if (!online) {
-      terminal?.addLog("WARNING", "Koneksi ke backend terputus. Kamera tetap dapat dinyalakan.");
-    }
+    if (document.hidden) scanner?.stop();
   });
 }
 
@@ -227,8 +207,7 @@ async function handleIdentified(user, score, latency) {
           </div>
           <div>
             <div style="font-weight:600">${escHtml(user.name)}</div>
-            <div class="text-xs" style="color:var(--color-coffee-light)">${user.profile ? escHtml(user.profile.kelas_jabatan) + ' · ' + escHtml(user.profile.nik) : 'Belum ada data diri'}</div>
-            <div class="text-xs" style="color:var(--color-coffee-light); margin-top: 4px;">Score: ${(score * 100).toFixed(1)}% · ${latency}ms</div>
+            <div class="text-xs" style="color:var(--color-coffee-light)">Score: ${(score * 100).toFixed(1)}% · ${latency}ms</div>
           </div>
         </div>
         <p class="text-sm">Waktu: <strong>${new Date().toLocaleTimeString("id-ID")}</strong></p>

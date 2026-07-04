@@ -33,9 +33,6 @@ const btnDeleteUser = document.getElementById("btn-delete-user");
 const btnTestScan = document.getElementById("btn-test-scan");
 const detailRoot =
   document.getElementById("user-detail-root") || document.querySelector("main");
-const profileNik = document.getElementById("profile-nik");
-const profileKelas = document.getElementById("profile-kelas");
-const walletBalance = document.getElementById("wallet-balance");
 
 async function init() {
   mountNavbar();
@@ -82,45 +79,6 @@ async function init() {
   btnDeleteUser?.addEventListener("click", confirmDelete);
 
   window.addEventListener("beforeunload", () => scanner?.stop());
-
-  let wasScanning = false;
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      wasScanning = scanActive;
-      if (scanActive) {
-        scanner?.stop();
-        scanActive = false;
-        if (btnTestScan) {
-          btnTestScan.disabled = false;
-          btnTestScan.textContent = "Mulai Test Scan";
-        }
-      }
-    } else {
-      if (wasScanning) {
-        toggleScan();
-      }
-    }
-  });
-
-  // Reactive backend offline protection
-  document.addEventListener("backend-status-change", (e) => {
-    const online = e.detail.online;
-    if (online) {
-      if (btnTestScan && btnTestScan.disabled && btnTestScan.innerHTML.includes("Offline")) {
-        btnTestScan.disabled = false;
-        btnTestScan.textContent = "Mulai Test Scan";
-      }
-    } else {
-      if (btnTestScan) {
-        if (scanActive) {
-          scanner?.stop();
-          scanActive = false;
-        }
-        btnTestScan.disabled = true;
-        btnTestScan.innerHTML = "⚠️ Server Offline";
-      }
-    }
-  });
 }
 
 function showLoadingSkeleton() {
@@ -129,9 +87,6 @@ function showLoadingSkeleton() {
   if (templateCount) templateCount.textContent = "—";
   if (enrolledDate) enrolledDate.textContent = "—";
   if (templateStatus) templateStatus.innerHTML = `<span class="ux-skeleton ux-skeleton--line" style="width:120px;display:inline-block"></span>`;
-  if (profileNik) profileNik.innerHTML = `<span class="ux-skeleton ux-skeleton--line" style="width:100px;display:inline-block"></span>`;
-  if (profileKelas) profileKelas.innerHTML = `<span class="ux-skeleton ux-skeleton--line" style="width:120px;display:inline-block"></span>`;
-  if (walletBalance) walletBalance.innerHTML = `<span class="ux-skeleton ux-skeleton--line" style="width:150px;display:inline-block"></span>`;
 }
 
 function showInvalidState(message) {
@@ -163,23 +118,6 @@ async function loadUserDetail() {
         templateStatus.innerHTML = `<span class="badge badge--identified">Sangat Stabil</span>`;
       } else {
         templateStatus.innerHTML = `<span class="badge badge--unknown">Kurang Stabil (${userData.template_count}/5)</span>`;
-      }
-    }
-
-    if (profileNik) {
-      profileNik.textContent = userData.profile?.nik || "Belum diatur";
-    }
-    if (profileKelas) {
-      profileKelas.textContent = userData.profile?.kelas_jabatan || "Belum diatur";
-    }
-    if (walletBalance) {
-      if (userData.wallet) {
-        walletBalance.textContent = new Intl.NumberFormat("id-ID", {
-          style: "currency",
-          currency: "IDR",
-        }).format(userData.wallet.balance);
-      } else {
-        walletBalance.textContent = "Belum diatur";
       }
     }
   } catch (err) {

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, UploadFile, File, HTTPException
 from sqlalchemy.orm import Session
 from fastapi import Depends
 from db.database import get_db
-from schemas.identification import IdentifyResponse, IdentifiedUser
+from schemas.identification import IdentifyResponse
 from services.image_service import upload_to_pil
 from services.identification_service import IdentificationService
 
@@ -40,7 +40,12 @@ async def identify_palm(
 
     user = None
     if result["status"] == "identified":
-        user = IdentifiedUser(id=result["user_id"], name=result["user_name"])
+        from db.repositories import UserRepository
+        from api.users import _to_user_response
+        user_repo = UserRepository(db)
+        u = user_repo.get(result["user_id"])
+        if u:
+            user = _to_user_response(u)
 
     return IdentifyResponse(
         status=result["status"],

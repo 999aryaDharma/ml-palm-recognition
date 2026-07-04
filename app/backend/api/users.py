@@ -11,19 +11,58 @@ from schemas.users import (
     UserResponse, 
     DeleteUserResponse, 
     TemplateCreateResponse,
-    VerifyReadyResponse  # <--- Tambahkan import ini
+    VerifyReadyResponse,
+    UserProfileRequest,
+    UserProfileResponse,
+    WalletResponse
 )
+from db.models import UserProfile, Wallet
 
 router = APIRouter()
 
 
 def _to_user_response(user) -> UserResponse:
+    profile = None
+    if user.profile:
+        profile = UserProfileResponse(
+            nik=user.profile.nik,
+            kelas_jabatan=user.profile.kelas_jabatan
+        )
+    wallet = None
+    if getattr(user, 'wallet', None):
+        wallet = WalletResponse(balance=user.wallet.balance)
+
     return UserResponse(
         id=user.id,
         name=user.name,
         enrolled_at=user.enrolled_at,
         template_count=len(user.templates or []),
+        profile=profile,
+        wallet=wallet
     )
+
+@router.post("/{user_id}/profile", response_model=UserResponse)
+def add_profile(user_id: int, payload: UserProfileRequest, db: Session = Depends(get_db)):
+    repo = UserRepository(db)
+    user = repo.get(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail={"error": "user_not_found", "message": "User tidak ditemukan."})
+
+    # Create or update profile
+    if not user.profile:
+        user.profile = UserProfile(user_id=user_id)
+    user.profile.nik = payload.nik
+    user.profile.kelas_jabatan = payload.kelas_jabatan
+
+    # Create or update wallet
+    if not user.wallet:
+        user.wallet = Wallet(user_id=user_id)
+    user.wallet.balance = payload.initial_balance
+
+    db.commit()
+    db.refresh(user)
+    
+    return _to_user_response(user)
 
 
 @router.post("", response_model=UserResponse)

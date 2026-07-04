@@ -2,7 +2,7 @@
 // js/api/client.js — Base API client with error handling
 // ============================================================
 
-const BASE_URL = "http://localhost:8000";
+const BASE_URL = "http://127.0.0.1:8000";
 
 /**
  * Core fetch wrapper. Throws a structured error object on non-2xx.

@@ -39,3 +39,10 @@ export const getTemplates = (userId) => apiFetch(`/users/${userId}/templates`);
 
 /** GET /users/:id/verify-ready */
 export const verifyUserReady = (userId) => apiFetch(`/users/${userId}/verify-ready`);
+
+/** POST /users/:id/profile */
+export const addProfile = (userId, payload) =>
+  apiFetch(`/users/${userId}/profile`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });

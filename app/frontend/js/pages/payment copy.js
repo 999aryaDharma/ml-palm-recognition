@@ -92,28 +92,8 @@ async function init() {
   btnStopPayment?.addEventListener("click", stopPayment);
 
   window.addEventListener("beforeunload", () => scanner?.stop());
-  
-  let wasScanning = false;
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      wasScanning = scannerStarted;
-      if (scannerStarted) {
-        scanner?.stop();
-        scannerStarted = false;
-      }
-    } else {
-      if (wasScanning) {
-        startPayment();
-      }
-    }
-  });
-
-  // Reactive backend offline protection
-  document.addEventListener("backend-status-change", (e) => {
-    const online = e.detail.online;
-    if (!online) {
-      terminal?.addLog("WARNING", "Koneksi ke backend terputus. Kamera tetap dapat dinyalakan.");
-    }
+    if (document.hidden) scanner?.stop();
   });
 
   terminal.addLog("SYSTEM", "Ready to process payment.");
@@ -181,9 +161,7 @@ async function handleIdentified(user, score, latency) {
           </div>
           <div>
             <div style="font-weight:600">${escapeHtml(user.name)}</div>
-            <div class="text-xs" style="color:var(--color-coffee-light)">${user.profile ? escapeHtml(user.profile.kelas_jabatan) + ' · ' + escapeHtml(user.profile.nik) : 'Belum ada data diri'}</div>
-            <div class="text-xs" style="color:var(--color-coffee-light); margin-top: 4px;">Sisa Saldo: <strong>${user.wallet ? formatRupiah(user.wallet.balance) : 'Rp 0'}</strong></div>
-            <div class="text-xs" style="color:var(--color-coffee-light); margin-top: 4px;">Match: ${(score * 100).toFixed(1)}% · ${latency}ms</div>
+            <div class="text-xs" style="color:var(--color-coffee-light)">ID: #${user.id} · Match: ${(score * 100).toFixed(1)}% · ${latency}ms</div>
           </div>
         </div>
       </div>

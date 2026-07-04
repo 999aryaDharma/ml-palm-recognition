@@ -52,20 +52,6 @@ class AuthorizedUserResponse(BaseModel):
     authorized: bool
 
 
-# ── Patient ───────────────────────────────────────────────────────────────────
-
-class PatientCheckinRequest(BaseModel):
-    user_id: int
-    match_score: float = 0.0
-
-
-class PatientCheckinResponse(BaseModel):
-    status: str
-    user: dict
-    patient: dict
-    timestamp: datetime
-
-
 # ── Demo Logs ─────────────────────────────────────────────────────────────────
 
 class DemoLogResponse(BaseModel):

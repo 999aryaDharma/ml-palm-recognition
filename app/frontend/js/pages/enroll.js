@@ -100,6 +100,7 @@ async function init() {
     name:      document.getElementById("step-name"),
     capture:   document.getElementById("step-capture"),
     verifying: document.getElementById("step-verifying"),
+    profile:   document.getElementById("step-profile"),
     success:   document.getElementById("step-success"),
   };
 
@@ -107,6 +108,11 @@ async function init() {
   document.getElementById("form-name")?.addEventListener("submit", (e) => {
     e.preventDefault();
     goToCaptureStep();
+  });
+
+  document.getElementById("form-profile")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    submitProfile();
   });
 
   btnCancelCapture?.addEventListener("click", (e) => {
@@ -176,6 +182,33 @@ async function goToCaptureStep() {
     await showStep("capture");
     resetCaptureUI();
     await initWebcam();
+  });
+}
+
+// ─────────────────────────────────────────────────────────
+// STEP 4 → 5: Submit Profile & Go to Success
+// ─────────────────────────────────────────────────────────
+async function submitProfile() {
+  const nik = document.getElementById("input-nik")?.value.trim();
+  const kelas = document.getElementById("input-kelas")?.value.trim();
+  const balance = parseFloat(document.getElementById("input-balance")?.value || "0");
+  const btn = document.getElementById("btn-submit-profile");
+
+  if (!nik || !kelas) {
+    toast.warning("Lengkapi NIK dan Kelas terlebih dahulu.");
+    return;
+  }
+
+  await withLoading(btn, "Menyimpan…", async () => {
+    try {
+      const { addProfile } = await import("../api/users.js");
+      await addProfile(currentUserId, { nik: nik, kelas_jabatan: kelas, initial_balance: balance });
+      await sleep(500);
+      await showStep("success");
+      toast.success(`Enrollment berhasil untuk ${currentUserName}!`, "Selamat!");
+    } catch (err) {
+      toast.error(err.message || "Gagal menyimpan data diri.");
+    }
   });
 }
 
@@ -468,29 +501,35 @@ async function finalizeEnrollment() {
     setVerifyStep("verify", "done", `${readyCheck.template_count}/5 template terverifikasi ✓`);
     advance();
     setVerifyProgress(totalSteps, totalSteps);
-    setVerifyMsg("✅ Enrollment selesai! Semua template tersimpan dengan aman.");
+    setVerifyMsg("✅ Template tersimpan. Lanjut isi data diri.");
 
-    // ── 8. Tampilkan Success ─────────────────────────────
+    // ── 8. Tampilkan Form Profil ─────────────────────────────
     webcam.stop();
-    buildSuccessScreen(readyCheck.template_count);
+    buildSuccessScreen(readyCheck.template_count); // Build the thumbnails for later
 
     await sleep(500);
-    await showStep("success");
-    toast.success(`Enrollment berhasil untuk ${currentUserName}!`, "Selamat!");
+    await showStep("profile");
 
   } catch (error) {
     setVerifyMsg(`❌ ${error.message}`);
     toast.error(error.message, "Enrollment Gagal");
+    console.error("Enrollment error:", error);
 
-    // Rollback: hapus user yang sudah dibuat kalau upload gagal
+    // Rollback: Hapus user IMMEDIATELY kalau upload gagal agar tidak ada sisa user cacat di DB
+    if (isUserCreated && currentUserId) {
+      console.log(`Rolling back user ${currentUserId}...`);
+      await deleteUser(currentUserId).catch((err) => {
+        console.error("Rollback failed:", err);
+      });
+      isUserCreated = false;
+      currentUserId = null;
+    }
+
     showRecoveryPrompt({
       title: "Enrollment gagal",
       message: error.message,
       actionLabel: "Coba dari Awal",
       onAction: async () => {
-        if (isUserCreated && currentUserId) {
-          await deleteUser(currentUserId).catch(() => {});
-        }
         resetLocalState();
         await showStep("capture");
         await initWebcam();

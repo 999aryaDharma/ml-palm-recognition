@@ -1,15 +1,12 @@
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 
-
-class IdentifiedUser(BaseModel):
-    id: int
-    name: str
+from schemas.users import UserResponse
 
 
 class IdentifyResponse(BaseModel):
     status: str                        # "identified" | "unknown"
-    user: Optional[IdentifiedUser] = None
+    user: Optional[UserResponse] = None
     score: float
     latency_ms: int
     error_code: Optional[str] = None

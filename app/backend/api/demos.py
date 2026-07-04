@@ -9,7 +9,6 @@ from schemas.demos import (
     PaymentPayRequest, PaymentPayResponse,
     AttendanceCheckinRequest, AttendanceCheckinResponse,
     AccessCheckResponse,
-    PatientCheckinRequest, PatientCheckinResponse,
     AuthorizedUserResponse,
 )
 
@@ -17,14 +16,6 @@ router = APIRouter()
 
 # ── In-memory authorized set (reset on restart, fine for demo) ──────────────
 _AUTHORIZED_USER_IDS: set[int] = set()
-
-# ── Mock patient data ────────────────────────────────────────────────────────
-_PATIENT_DATA: dict[int, dict] = {
-    1: {"nik": "3201****0001", "dokter": "dr. Wijaya, Sp.PD",  "jadwal": "Senin 10:00", "last_visit": "12 Apr 2026", "rekam_medik": "RM-2024-0042"},
-    2: {"nik": "3271****0002", "dokter": "dr. Putri, Sp.A",    "jadwal": "Senin 11:30", "last_visit": "03 Mei 2026", "rekam_medik": "RM-2025-0118"},
-    3: {"nik": "3174****0003", "dokter": "dr. Santoso, Sp.JP", "jadwal": "Selasa 09:00","last_visit": "20 Apr 2026", "rekam_medik": "RM-2025-0291"},
-}
-
 
 def _get_user_or_404(user_id: int, db: Session):
     repo = UserRepository(db)
@@ -41,8 +32,26 @@ def _get_user_or_404(user_id: int, db: Session):
 
 @router.post("/payment/pay", response_model=PaymentPayResponse)
 def payment_pay(payload: PaymentPayRequest, db: Session = Depends(get_db)):
-    """Record a palm-authorized payment transaction."""
+    """Record a palm-authorized payment transaction and deduct wallet."""
     user = _get_user_or_404(payload.user_id, db)
+
+    if not user.wallet or user.wallet.balance < payload.amount:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "insufficient_balance", "message": f"Saldo tidak mencukupi. Saldo saat ini: Rp {user.wallet.balance if user.wallet else 0:,.0f}"}
+        )
+
+    # Deduct balance
+    user.wallet.balance -= payload.amount
+
+    from db.models import WalletTransaction
+    txn = WalletTransaction(
+        wallet_id=user.wallet.id,
+        amount=payload.amount,
+        transaction_type="payment",
+        description=f"Payment at {payload.merchant}"
+    )
+    db.add(txn)
 
     from uuid import uuid4
     txn_id = f"PAY-{uuid4().hex[:10].upper()}"
@@ -51,9 +60,10 @@ def payment_pay(payload: PaymentPayRequest, db: Session = Depends(get_db)):
     log_repo.create(
         user_id=user.id,
         demo_type="payment",
-        payload={"transaction_id": txn_id, "amount": payload.amount, "merchant": payload.merchant},
+        payload={"transaction_id": txn_id, "amount": payload.amount, "merchant": payload.merchant, "remaining_balance": user.wallet.balance},
         match_score=payload.match_score,
     )
+    db.commit()
 
     return PaymentPayResponse(
         status="success",
@@ -151,38 +161,4 @@ async def access_check(
         score=round(result["score"], 4),
         latency_ms=latency_ms,
         reason="authorized" if granted else ("not_authorized" if identified else "unknown_user"),
-    )
-
-
-# ── Patient Check-in ──────────────────────────────────────────────────────────
-
-@router.post("/patient/checkin", response_model=PatientCheckinResponse)
-def patient_checkin(payload: PatientCheckinRequest, db: Session = Depends(get_db)):
-    """Record patient check-in and return patient card data."""
-    user = _get_user_or_404(payload.user_id, db)
-
-    patient = _PATIENT_DATA.get(
-        user.id,
-        {
-            "nik": f"32**********{user.id:04d}",
-            "dokter": "dr. Demo, Sp.U",
-            "jadwal": "Hari ini",
-            "last_visit": "—",
-            "rekam_medik": f"RM-DEMO-{user.id:04d}",
-        },
-    )
-
-    log_repo = DemoLogRepository(db)
-    log = log_repo.create(
-        user_id=user.id,
-        demo_type="patient",
-        payload={"patient": patient},
-        match_score=payload.match_score,
-    )
-
-    return PatientCheckinResponse(
-        status="success",
-        user={"id": user.id, "name": user.name},
-        patient=patient,
-        timestamp=log.timestamp,
-    )
+    )
