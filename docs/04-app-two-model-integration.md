@@ -1,25 +1,34 @@
-# Local Application Integration — Two Model Selection
+# Local Application Integration — Two Model Runtime Selection
 
 ## 1. Tujuan
 
-Aplikasi lokal harus dapat menggunakan dua model palm recognition melalui pipeline aplikasi yang sama:
+Aplikasi lokal harus dapat menggunakan dua model palm recognition melalui pipeline runtime yang sama:
 
-- `mobilefacenet-pretrained`
-- `palmnet-lite-scratch`
+- `mobilefacenet-pretrained` — existing frozen artifact;
+- `palmnet-lite-scratch` — model baru hasil tugas.
 
-Frontend memilih model. Backend menjalankan model yang dipilih, mengambil threshold model tersebut, dan membandingkan query embedding hanya dengan template yang berasal dari model serta versi yang sama.
+Fokus pengembangan bukan melatih dua model. Fokusnya adalah membuat satu runtime aplikasi yang dapat memilih artifact mana yang digunakan untuk menghasilkan embedding.
 
 ## 2. Scope
 
-Desain ini hanya untuk penggunaan lokal pada tugas. Tidak diperlukan distributed serving, dynamic model download, remote registry, atau user migration.
+Desain hanya untuk penggunaan lokal pada tugas.
 
-Database dapat di-reset setelah perubahan schema.
+Tidak diperlukan:
+
+- distributed serving;
+- remote model registry;
+- model download service;
+- production migration;
+- user migration;
+- backward compatibility data lama.
+
+SQLite dapat di-reset saat schema berubah.
 
 ## 3. Model Registry
 
-Backend mengganti konsep satu recognizer global menjadi `ModelRegistry`.
+Backend menggunakan `ModelRegistry` untuk mendaftarkan artifact lokal.
 
-Target struktur:
+Target:
 
 ```text
 backend/ml/models/
@@ -28,8 +37,7 @@ backend/ml/models/
 │   └── 1.0.0/
 │       ├── model.pt
 │       ├── manifest.json
-│       ├── threshold.json
-│       └── metrics.json
+│       └── threshold.json
 └── palmnet-lite-scratch/
     └── 1.0.0/
         ├── model.pt
@@ -38,18 +46,22 @@ backend/ml/models/
         └── metrics.json
 ```
 
-ModelRegistry bertanggung jawab atas:
+MobileFaceNet adalah artifact existing. Registry hanya perlu memuat dan memvalidasi artifact tersebut, bukan mengetahui cara model itu dahulu dilatih.
 
-- discovery model artifact lokal;
-- validasi manifest;
-- load TorchScript;
-- penyimpanan runtime metadata;
-- lookup berdasarkan `model_id` dan version;
-- penyediaan threshold model.
+PalmNet-Lite masuk registry setelah training, evaluation, dan export selesai.
 
-ModelRegistry tidak bertanggung jawab atas training.
+## 4. Shared Runtime Contract
 
-## 4. Runtime Abstraction
+Kedua artifact harus dapat digunakan melalui interface yang sama:
+
+```text
+Input  : [B, 3, 112, 112] float32 RGB
+Output : [B, 128] float32 L2-normalized embedding
+```
+
+Backend inference tidak perlu mengetahui source architecture jika artifact telah berbentuk TorchScript.
+
+## 5. Runtime Abstraction
 
 Target abstraction:
 
@@ -62,7 +74,7 @@ ModelRuntime
 └── threshold
 ```
 
-Penggunaan:
+Contoh penggunaan:
 
 ```python
 runtime = registry.get(model_id)
@@ -70,44 +82,42 @@ embedding = runtime.recognizer.extract_embedding(roi)
 threshold = runtime.threshold
 ```
 
-Dengan demikian service tidak perlu mempunyai conditional logic berbasis nama arsitektur.
+Tidak diperlukan conditional branch berdasarkan class `MobileFaceNet` atau `PalmNetLite` di service layer.
 
-## 5. API Model Discovery
+## 6. Model Discovery API
 
-Backend menyediakan endpoint lokal:
+Backend menyediakan:
 
 ```text
 GET /models
 ```
 
-Contoh response:
+Contoh:
 
 ```json
 {
   "models": [
     {
       "id": "mobilefacenet-pretrained",
-      "name": "MobileFaceNet (Pretrained)",
+      "name": "MobileFaceNet (Existing Pretrained)",
       "version": "1.0.0",
-      "training_mode": "pretrained"
+      "source": "existing_artifact"
     },
     {
       "id": "palmnet-lite-scratch",
       "name": "PalmNet-Lite (Scratch)",
       "version": "1.0.0",
-      "training_mode": "scratch"
+      "source": "project_training"
     }
   ]
 }
 ```
 
-Frontend membangun selector dari response ini agar daftar model tidak di-hardcode di beberapa file.
+Frontend membangun selector dari response ini.
 
-## 6. Selection per Request
+## 7. Selection per Request
 
-Pemilihan model harus terjadi per request, bukan melalui global mutable active-model state.
-
-Contoh identification request:
+Model dipilih per request.
 
 ```text
 POST /identify
@@ -116,56 +126,55 @@ multipart/form-data:
   model_id=palmnet-lite-scratch
 ```
 
-Alasan:
+atau:
 
-- implementasi sederhana;
-- service stateless terhadap pilihan model;
-- mudah diuji;
-- tidak ada risiko global model switch memengaruhi request lain;
-- frontend bebas mengganti model kapan saja.
+```text
+model_id=mobilefacenet-pretrained
+```
 
-## 7. Frontend Selector
+Jangan menggunakan mutable global `active_model` karena pilihan model seharusnya menjadi bagian dari request.
 
-UI cukup menampilkan pilihan sederhana:
+## 8. Frontend
+
+Frontend hanya membutuhkan selector sederhana:
 
 ```text
 Recognition Model
-[ MobileFaceNet (Pretrained) v ]
-
-atau
-
+[ MobileFaceNet (Existing)  v ]
 [ PalmNet-Lite (Scratch)      ]
 ```
 
-Pilihan disimpan pada state halaman/local storage jika dibutuhkan untuk kenyamanan demo.
+Frontend tidak memuat TorchScript. Inference tetap dilakukan di FastAPI backend.
 
-Frontend tidak memuat `.pt` model. Inference tetap dilakukan FastAPI backend.
+Pilihan model dapat disimpan di state/local storage untuk kenyamanan demo.
 
-## 8. Enrollment Strategy
+## 9. Enrollment untuk Scope Tugas
 
-Untuk scope tugas, desain yang direkomendasikan adalah satu sesi capture dapat menghasilkan template untuk kedua model.
+Tidak perlu memikirkan migrasi user lama.
+
+Setelah schema model-aware diterapkan, database demo boleh di-reset lalu enrollment dilakukan kembali.
+
+Implementasi boleh memilih salah satu dari dua pola:
+
+### Opsi sederhana
+
+Enrollment menerima `model_id`, sehingga template dibuat hanya untuk model yang dipilih.
+
+### Opsi demo yang lebih nyaman
+
+Satu capture ROI dijalankan ke kedua model dan menghasilkan dua set embedding.
 
 ```text
-Captured Palm Image
-       -> Hand Detection / ROI
-       -> same normalized ROI
-          |              |
-          v              v
- MobileFaceNet       PalmNet-Lite
-          |              |
-          v              v
- embedding A        embedding B
-          |              |
-          +------DB------+ 
+Palm ROI
+  ├── MobileFaceNet -> embedding existing-model
+  └── PalmNet-Lite  -> embedding scratch-model
 ```
 
-Jika implementasi awal ingin lebih sederhana, endpoint enrollment juga boleh menerima `model_id` dan user melakukan enrollment per-model. Namun target akhir yang lebih nyaman untuk demo adalah menyimpan output kedua model dari capture yang sama.
+Kedua opsi valid untuk scope lokal. Pilih yang paling sederhana saat implementasi tanpa menambah kompleksitas yang tidak memberi nilai pada tugas.
 
-Tidak perlu menangani migration user lama. Database boleh di-reset sebelum demo dua-model.
+## 10. Template Schema
 
-## 9. Template Schema
-
-Schema target minimum:
+Minimal:
 
 ```text
 Template
@@ -178,9 +187,7 @@ Template
 └── captured_at
 ```
 
-`model_id` dan `model_version` adalah bagian penting karena embedding space tidak kompatibel antar model atau antar retraining version.
-
-## 10. Embedding Compatibility Rule
+## 11. Embedding Compatibility
 
 Aturan keras:
 
@@ -190,13 +197,11 @@ AND
 query.model_version == template.model_version
 ```
 
-baru cosine similarity boleh dihitung.
+baru similarity boleh dihitung.
 
-Meskipun kedua model menghasilkan 128 dimensi, nilai embedding tidak berada di ruang representasi yang sama.
+Dua embedding 128-D dari model berbeda tidak otomatis berada pada ruang representasi yang sama.
 
-## 11. Model-Aware Cache
-
-Embedding cache harus mendukung lookup berdasarkan model identity.
+## 12. Model-Aware Cache
 
 Target API:
 
@@ -205,32 +210,25 @@ cache.get_all(model_id, model_version)
 cache.get_user(user_id, model_id, model_version)
 ```
 
-Boleh juga menggunakan nested structure:
+Untuk aplikasi lokal dengan data kecil, cache dapat dibuat sederhana.
+
+## 13. Identification Pipeline
 
 ```text
-cache[model_id][version][user_id] -> embeddings[]
-```
-
-Untuk dataset demo lokal yang kecil, optimisasi memory kompleks tidak diperlukan.
-
-## 12. Identification Pipeline
-
-```text
-Frontend model selection
+Frontend chooses model
        -> POST /identify + model_id
        -> ModelRegistry.get(model_id)
        -> hand detection
        -> palm ROI
-       -> selected model inference
-       -> 128-D normalized query embedding
-       -> cache filtered by model_id + version
-       -> cosine matching
-       -> selected model threshold
+       -> selected TorchScript artifact
+       -> 128-D embedding
+       -> templates filtered by model_id + version
+       -> cosine similarity
+       -> selected-model threshold
        -> identified / unknown
-       -> response includes model metadata
 ```
 
-Response sebaiknya memuat:
+Response sebaiknya menyertakan model metadata:
 
 ```json
 {
@@ -245,43 +243,44 @@ Response sebaiknya memuat:
 }
 ```
 
-## 13. Threshold Rule
+## 14. Threshold
 
-Threshold diambil dari artifact model yang dipilih.
-
-Jangan memakai satu `threshold.json` global.
+Threshold bersifat model-specific.
 
 ```text
-MobileFaceNet -> threshold MobileFaceNet
-PalmNet-Lite -> threshold PalmNet-Lite
+MobileFaceNet -> existing/calibrated MobileFaceNet threshold
+PalmNet-Lite  -> PalmNet-Lite validation calibration threshold
 ```
 
-Confidence display di UI boleh ditambahkan, tetapi scientific metrics dan logs harus tetap menyimpan raw cosine score.
+Threshold satu model tidak boleh digunakan untuk model lain.
 
-## 14. Startup
-
-Saat FastAPI startup:
+## 15. Startup
 
 ```text
 load settings
--> initialize detector/ROI dependencies
+-> initialize detector/ROI
 -> ModelRegistry.discover()
--> load both TorchScript artifacts
--> initialize model-aware embedding cache
+-> load existing MobileFaceNet artifact
+-> load PalmNet-Lite artifact jika tersedia
+-> initialize model-aware cache
 -> start API
 ```
 
-Jika satu artifact belum tersedia saat development, registry boleh menandainya unavailable dan `GET /models` hanya mengembalikan model valid yang berhasil di-load.
+Selama PalmNet-Lite belum selesai ditraining/export, registry boleh hanya menampilkan MobileFaceNet sebagai available model.
 
-## 15. Local-Only Simplification
+Setelah artifact PalmNet-Lite tersedia, model kedua langsung muncul melalui registry tanpa membuat pipeline service baru.
 
-Karena scope tugas lokal:
+## 16. Integrasi sebagai Bagian Hasil Tugas
 
-- semua model boleh preload ke memory;
-- SQLite tetap digunakan;
-- model artifacts disimpan di repository/local filesystem;
-- tidak perlu model download endpoint;
-- tidak perlu artifact signing;
-- tidak perlu database migration strategy production;
-- tidak perlu permission untuk memilih model;
-- database dapat dibuat ulang ketika schema model-aware diperkenalkan.
+Yang perlu dicatat untuk laporan PalmNet-Lite:
+
+- artifact berhasil di-load backend;
+- input/output contract valid;
+- model muncul pada `GET /models`;
+- frontend dapat memilih PalmNet-Lite;
+- enrollment/identification menggunakan model yang dipilih;
+- response menunjukkan `model_id`;
+- local inference berjalan tanpa error;
+- latency dapat dicatat bila relevan.
+
+MobileFaceNet hanya digunakan untuk membuktikan bahwa runtime app memang dapat menampung lebih dari satu artifact, bukan sebagai fokus analisis ilmiah utama.
