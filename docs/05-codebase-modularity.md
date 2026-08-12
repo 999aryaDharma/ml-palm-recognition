@@ -2,26 +2,25 @@
 
 ## 1. Tujuan
 
-Codebase harus mendukung dua model tanpa menduplikasi seluruh pipeline. Pemisahan dilakukan berdasarkan responsibility, bukan berdasarkan membuat dua aplikasi ML yang terpisah.
+Codebase harus mendukung dua runtime model tanpa menduplikasi pipeline aplikasi, tetapi hanya **PalmNet-Lite** yang menjadi model aktif untuk research/training pada tugas ini.
 
-Target utama:
+Prinsip utama:
 
-- model architecture terpisah dari trainer;
+- PalmNet-Lite source architecture terpisah dari trainer;
 - trainer terpisah dari evaluation;
 - evaluation terpisah dari runtime backend;
-- artifact exporter generic;
-- backend tidak mengimpor source architecture untuk inference TorchScript;
-- pilihan model ditentukan melalui registry/factory;
-- configuration model-specific;
-- trained logs model-specific;
-- shared utilities digunakan bersama bila kontraknya sama.
+- exporter fokus pada PalmNet-Lite hasil training;
+- MobileFaceNet existing diperlakukan sebagai frozen TorchScript artifact;
+- backend bersifat architecture-agnostic;
+- ModelRegistry mengelola dua artifact runtime;
+- trained logs hanya wajib untuk PalmNet-Lite;
+- shared utilities digunakan jika behavior memang sama.
 
 ## 2. Target Struktur ML
 
 ```text
 app/ml/
 ├── configs/
-│   ├── mobilefacenet_pretrained.yaml
 │   └── palmnet_lite_scratch.yaml
 │
 ├── palm_recognition/
@@ -29,9 +28,7 @@ app/ml/
 │   ├── models/
 │   │   ├── __init__.py
 │   │   ├── blocks.py
-│   │   ├── mobilefacenet.py
-│   │   ├── palmnet_lite.py
-│   │   └── factory.py
+│   │   └── palmnet_lite.py
 │   │
 │   ├── data/
 │   │   ├── dataset.py
@@ -60,46 +57,23 @@ app/ml/
 │       └── verifier.py
 │
 ├── scripts/
-│   ├── train.py
-│   ├── evaluate.py
-│   └── export_artifact.py
+│   ├── train_palmnet_lite.py
+│   ├── evaluate_palmnet_lite.py
+│   └── export_palmnet_lite.py
 │
 ├── checkpoints/
-│   ├── mobilefacenet-pretrained/
 │   └── palmnet-lite-scratch/
 │
 └── artifacts/
-    ├── trained_logs/
-    └── models/
+    └── trained_logs/
+        └── palmnet-lite-scratch/
 ```
 
-Struktur aktual tidak harus dipindahkan sekaligus. Refactor boleh dilakukan bertahap, tetapi dependency direction harus menuju target ini.
+Tidak perlu membuat config/trainer/checkpoint baru untuk MobileFaceNet karena model tersebut tidak dilatih ulang.
 
-## 3. Model Factory
+## 3. PalmNet-Lite Architecture Responsibility
 
-`factory.py` menjadi satu tempat untuk membuat architecture berdasarkan model identifier.
-
-Contoh interface:
-
-```python
-def build_model(model_id: str, config) -> nn.Module:
-    ...
-```
-
-Mapping:
-
-```text
-mobilefacenet-pretrained -> MobileFaceNet
-palmnet-lite-scratch     -> PalmNetLite
-```
-
-Factory membuat architecture. Loading pretrained weight atau scratch initialization dilakukan oleh training orchestration berdasarkan `training_mode`, bukan disembunyikan di dalam architecture class.
-
-Hal ini mencegah PalmNet-Lite secara tidak sengaja memuat external weights.
-
-## 4. Architecture Class Responsibility
-
-Architecture class hanya bertanggung jawab atas network graph.
+`palmnet_lite.py` hanya mendefinisikan network graph.
 
 Contoh:
 
@@ -109,18 +83,30 @@ class PalmNetLite(nn.Module):
     def forward(...): ...
 ```
 
-Class tidak boleh:
+Architecture class tidak boleh:
 
 - membaca dataset;
 - mengetahui filesystem checkpoint default;
 - menjalankan optimizer;
-- menyimpan TensorBoard log;
+- menyimpan trained logs;
 - melakukan evaluation;
-- copy artifact ke backend.
+- meng-copy artifact ke backend.
+
+## 4. Reusable Building Blocks
+
+`blocks.py` berisi primitive reusable untuk PalmNet-Lite, misalnya:
+
+- Conv + BatchNorm + PReLU;
+- depthwise convolution;
+- pointwise projection;
+- inverted residual bottleneck;
+- Global Depthwise Convolution block.
+
+Tujuannya agar arsitektur mudah dibaca dan tidak berisi duplikasi kode layer.
 
 ## 5. Trainer Responsibility
 
-Trainer bertanggung jawab atas generic training mechanics:
+Trainer generic bertanggung jawab atas mechanics:
 
 - forward;
 - loss;
@@ -131,15 +117,13 @@ Trainer bertanggung jawab atas generic training mechanics:
 - checkpoint callback;
 - trained-log callback.
 
-Logic spesifik stage ditempatkan pada `softmax_stage.py` dan `arcface_stage.py`.
+Perbedaan Stage A Softmax dan Stage B ArcFace berada pada stage module, bukan banyak `if` di satu loop besar.
 
 ## 6. Configuration
 
-Hyperparameter tidak boleh tersebar sebagai magic number.
+Semua hyperparameter PalmNet-Lite berada pada config terpusat.
 
-Setiap model mempunyai config terpisah, sementara common settings dapat berada pada config shared/default.
-
-Contoh PalmNet-Lite config:
+Contoh:
 
 ```yaml
 model:
@@ -165,13 +149,11 @@ arcface:
   scale: 32
 ```
 
-Actual values dapat berubah setelah eksperimen.
+Nilai aktual boleh berubah berdasarkan eksperimen. Setiap perubahan penting harus tercermin pada trained log dan living report source.
 
-## 7. Evaluation Reuse
+## 7. Evaluation Module
 
-Evaluation harus menerima abstract embedding model, bukan hardcode MobileFaceNet.
-
-Target:
+Evaluation menerima embedding model secara abstrak:
 
 ```python
 results = evaluate_biometric(
@@ -181,14 +163,15 @@ results = evaluate_biometric(
 )
 ```
 
-Dengan demikian metric code digunakan identik untuk kedua model.
+Module evaluation tidak perlu mengetahui apakah pada runtime app ada MobileFaceNet.
 
-## 8. Exporter Reuse
+Fokusnya adalah mengevaluasi PalmNet-Lite secara objektif.
 
-Exporter menerima:
+## 8. Exporter
+
+Exporter PalmNet-Lite menerima:
 
 ```text
-model_id
 checkpoint
 model config
 version
@@ -196,9 +179,9 @@ metrics
 threshold
 ```
 
-Kemudian menghasilkan artifact bundle yang konsisten.
+Kemudian menghasilkan inference-only TorchScript artifact.
 
-Tidak boleh ada exporter terpisah yang menyalin 90% logic hanya karena architecture berbeda.
+Tidak perlu membuat generic training exporter untuk MobileFaceNet hanya karena aplikasi punya dua model. MobileFaceNet existing cukup ditempatkan pada runtime artifact folder dengan manifest yang sesuai.
 
 ## 9. Backend Target Structure
 
@@ -219,41 +202,49 @@ app/backend/ml/
 └── models/
     ├── registry.json
     ├── mobilefacenet-pretrained/
+    │   └── 1.0.0/
     └── palmnet-lite-scratch/
+        └── 1.0.0/
 ```
 
-Backend `recognizer.py` bersifat architecture-agnostic karena hanya memuat TorchScript artifact.
+Backend tidak mengimpor training package dan tidak perlu mengimpor `PalmNetLite` untuk inference jika `model.pt` sudah TorchScript.
 
-## 10. Service Responsibilities
+## 10. Frozen MobileFaceNet Boundary
+
+Source/training logic MobileFaceNet existing tidak perlu menjadi bagian dari refactor research baru.
+
+Yang penting untuk runtime:
+
+```text
+existing model.pt
++ manifest
++ threshold
+```
+
+Jika code lama MobileFaceNet masih ada di repository karena historical reason, jangan biarkan code tersebut menjadi dependency wajib bagi training PalmNet-Lite atau backend runtime.
+
+## 11. Service Responsibilities
 
 ### EnrollmentService
 
-Bertanggung jawab atas:
-
-- image -> detection;
-- ROI extraction;
-- model inference;
-- quality information;
-- menghasilkan embedding untuk persistence.
-
-Tidak bertanggung jawab atas SQL detail.
+- detection;
+- ROI;
+- memilih model runtime sesuai request/flow;
+- menghasilkan embedding;
+- quality information.
 
 ### IdentificationService
 
-Bertanggung jawab atas:
-
-- memilih runtime berdasarkan request model;
-- image -> ROI -> query embedding;
-- mengambil model-compatible templates;
-- matcher;
+- memilih runtime berdasarkan `model_id`;
+- menghasilkan query embedding;
+- mengambil template yang kompatibel;
+- cosine matching;
 - threshold decision;
-- response model metadata.
-
-Tidak boleh hardcode `MobileFaceNet` atau `PalmNetLite`.
+- response metadata.
 
 ### Repository Layer
 
-Bertanggung jawab atas persistence dan query filtering berdasarkan:
+Persistence/filtering berdasarkan:
 
 ```text
 user_id
@@ -261,82 +252,123 @@ model_id
 model_version
 ```
 
-## 11. No DRY Overcorrection
+## 12. Model Registry Responsibility
 
-Modular bukan berarti semua perbedaan dipaksa masuk satu function besar dengan banyak `if`.
+`ModelRegistry` hanya bagian runtime.
 
-Shared logic dipakai bersama jika behavior benar-benar sama. Logic yang berbeda secara konseptual boleh terpisah.
+Tanggung jawab:
 
-Contoh:
+- membaca local artifact directory;
+- membaca manifest;
+- load TorchScript;
+- expose available model list;
+- lookup model berdasarkan ID/version;
+- expose threshold dan metadata.
 
-- MobileFaceNet pretrained initialization berbeda dari PalmNet-Lite scratch initialization -> pisahkan strategy;
-- training epoch loop sama -> reuse Trainer;
-- model architecture berbeda -> class terpisah;
-- evaluation metric sama -> reuse evaluation module.
+Registry tidak bertanggung jawab atas:
 
-## 12. Dependency Direction
+- training;
+- checkpoint selection;
+- optimizer;
+- evaluation eksperimen.
 
-Target arah dependency:
+## 13. No DRY Overcorrection
+
+Modular bukan berarti semua hal dibuat generic tanpa kebutuhan.
+
+Contoh keputusan:
+
+- PalmNet-Lite training: modular dan reusable;
+- MobileFaceNet training: tidak dibangun ulang karena tidak dibutuhkan;
+- TorchScript runtime loading: shared;
+- cosine matcher: shared;
+- architecture source: hanya diperlukan untuk PalmNet-Lite research/export;
+- trained logs: hanya untuk model yang benar-benar dilatih pada tugas.
+
+Ini menghindari overengineering.
+
+## 14. Dependency Direction
 
 ```text
-scripts
+PalmNet-Lite scripts
   -> training/evaluation/artifacts
-      -> models/data/losses
+      -> model/data/loss
 
-backend
-  -> exported TorchScript artifact
+Backend
+  -> runtime registry
+      -> exported TorchScript artifacts
 ```
 
-Backend tidak seharusnya bergantung pada training package.
+Backend tidak bergantung pada training code.
 
-## 13. Testing Strategy
+MobileFaceNet runtime tidak bergantung pada source training code.
 
-Minimal test groups:
+## 15. Testing Strategy
 
-### Model Tests
+### PalmNet-Lite Model Tests
 
-- forward shape PalmNet-Lite;
+- forward shape;
+- parameter sanity;
 - random initialization path;
-- MobileFaceNet factory;
-- parameter sanity.
+- no external checkpoint load;
+- backward pass smoke test.
+
+### Training Tests
+
+- one mini epoch;
+- checkpoint save/load;
+- trained log creation;
+- Stage A -> Stage B handoff.
 
 ### Artifact Tests
 
-- export;
+- PalmNet-Lite export;
 - reload TorchScript;
-- output shape;
+- output shape 128;
 - L2 norm;
 - manifest validation.
 
 ### Registry Tests
 
-- discover two models;
-- reject invalid manifest;
-- select requested model;
-- unavailable model behavior.
-
-### Matching Tests
-
-- reject/filter mismatched `model_id`;
-- reject/filter mismatched `model_version`;
-- cosine matcher correctness.
+- existing MobileFaceNet discovered;
+- PalmNet-Lite discovered setelah artifact tersedia;
+- invalid artifact ditolak;
+- requested model selected correctly.
 
 ### API Tests
 
 - `GET /models`;
-- identify using MobileFaceNet;
-- identify using PalmNet-Lite;
-- invalid model id;
-- response contains model metadata.
+- identification menggunakan MobileFaceNet artifact;
+- identification menggunakan PalmNet-Lite artifact;
+- invalid `model_id`;
+- response memuat model metadata.
 
-## 14. Refactor Rule
+## 16. Development Order
 
-Refactor harus dilakukan dengan prinsip:
+Urutan implementasi yang disarankan:
 
-1. pertahankan behavior existing MobileFaceNet;
-2. extract shared abstractions;
-3. tambahkan PalmNet-Lite;
-4. baru ubah app menjadi model-aware;
-5. hapus compatibility code yang tidak lagi dibutuhkan untuk local assignment.
+1. rapikan shared data/evaluation utilities seperlunya;
+2. implement PalmNet-Lite architecture;
+3. implement scratch initialization;
+4. implement PalmNet-Lite training + trained logs;
+5. evaluate dan tune PalmNet-Lite;
+6. export PalmNet-Lite TorchScript artifact;
+7. buat runtime ModelRegistry;
+8. registrasikan MobileFaceNet existing;
+9. registrasikan PalmNet-Lite artifact;
+10. buat frontend selector dan model-aware API;
+11. lakukan local end-to-end test;
+12. update `06-report-writing-source.md` dengan hasil aktual.
 
-Karena tidak ada kebutuhan migrasi production, jangan mempertahankan struktur lama hanya demi backward compatibility yang tidak memberi nilai pada tugas.
+## 17. Refactor Rule
+
+Refactor hanya dilakukan jika memberi nilai pada tujuan tugas.
+
+Jangan:
+
+- merancang ulang training MobileFaceNet;
+- membuat migration architecture production;
+- membuat remote registry;
+- membuat abstraction untuk skenario hipotetis yang tidak digunakan.
+
+Prioritas utama adalah codebase PalmNet-Lite yang bersih, eksperimen yang dapat direproduksi, artifact yang dapat dipakai aplikasi, dan integrasi dua runtime model yang sederhana.
