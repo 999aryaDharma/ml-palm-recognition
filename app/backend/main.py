@@ -1,14 +1,5 @@
-# ── PATCH untuk main.py ──────────────────────────────────────────────────────
-#
-# Tambahkan dua baris ini ke main.py bestehende:
-#
-# 1. Di bagian import (setelah baris `from api import health, users, ...`):
-#    from api import validate_frame
-#
-# 2. Di bagian router registration (setelah baris `app.include_router(seed.router, ...)`):
-#    app.include_router(validate_frame.router, tags=["validation"])
-#
-# ── VERSI LENGKAP main.py SETELAH PATCH ─────────────────────────────────────
+# main.py — Palm Biometric API v0.6.0
+# Includes dual-model support via ModelRegistry.
 
 from contextlib import asynccontextmanager
 import logging
@@ -25,7 +16,7 @@ from db.database import create_tables, SessionLocal
 from ml.cache import EmbeddingCache
 
 # ─── TAMBAH validate_frame DI SINI ───────────────────────────────────────────
-from api import health, users, identification, demos, demo_logs, debug, seed, validate_frame
+from api import health, users, identification, demos, demo_logs, debug, seed, validate_frame, models as models_api
 # ─────────────────────────────────────────────────────────────────────────────
 
 logging.basicConfig(
@@ -43,18 +34,38 @@ async def lifespan(app: FastAPI):
 
     from ml.detection import HandDetector
     from ml.recognizer import PalmRecognizer
+    from ml.registry import ModelRegistry
 
+    # ── Hand Detector ──────────────────────────────────────────────────────────
     detector_ok = os.path.exists(settings.hand_landmarker_path)
-    recognizer_ok = os.path.exists(settings.recognizer_model_path)
-
     if not detector_ok:
         logger.warning("⚠️  hand_landmarker.task not found at '%s'.", settings.hand_landmarker_path)
-    if not recognizer_ok:
-        logger.warning("⚠️  palm_recognizer.pt not found at '%s'.", settings.recognizer_model_path)
-
     app.state.detector = HandDetector(settings.hand_landmarker_path)
-    app.state.recognizer = PalmRecognizer(settings.recognizer_model_path)
 
+    # ── Model Registry (dual-model support) ───────────────────────────────────
+    registry = ModelRegistry(settings.models_dir)
+    n_loaded = registry.discover()
+    app.state.registry = registry
+    logger.info("✓ ModelRegistry: %d model(s) loaded from '%s'", n_loaded, settings.models_dir)
+    for m in registry.list_available():
+        logger.info("   model: %s (%s) threshold=%.4f", m['id'], m['name'], m['threshold'])
+
+    # ── Backward-compat single recognizer ────────────────────────────────────
+    # Keep for services that still use app_state.recognizer directly.
+    # Points to the default model via registry if available, else flat model.pt
+    default_id = settings.default_model_id
+    if registry.is_available(default_id):
+        app.state.recognizer = registry.get(default_id)
+        app.state.active_model_id = default_id
+    else:
+        # Fallback to legacy flat model.pt
+        recognizer_ok = os.path.exists(settings.recognizer_model_path)
+        if not recognizer_ok:
+            logger.warning("⚠️  palm_recognizer.pt not found at '%s'.", settings.recognizer_model_path)
+        app.state.recognizer = PalmRecognizer(settings.recognizer_model_path)
+        app.state.active_model_id = "mobilefacenet-pretrained"
+
+    # ── Embedding Cache ───────────────────────────────────────────────────────
     app.state.cache = EmbeddingCache()
     db = SessionLocal()
     try:
@@ -65,9 +76,10 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
 
-    logger.info("✓ Backend started.")
+    logger.info("✓ Backend started (active model: %s).", app.state.active_model_id)
     yield
     logger.info("Backend shutdown.")
+
 
 
 settings = get_settings()
@@ -129,10 +141,8 @@ app.include_router(demo_logs.router,       prefix="/demo-logs",       tags=["dem
 app.include_router(demos.router,           prefix="/demos",           tags=["demos"])
 app.include_router(debug.router,           prefix="/debug",           tags=["debug"])
 app.include_router(seed.router,                                       tags=["seed"])
-
-# ─── TAMBAH BARIS INI ────────────────────────────────────────────────────────
 app.include_router(validate_frame.router,                             tags=["validation"])
-# ─────────────────────────────────────────────────────────────────────────────
+app.include_router(models_api.router,                                 tags=["models"])
 
 
 if __name__ == "__main__":

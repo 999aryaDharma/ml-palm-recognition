@@ -1,0 +1,14 @@
+{
+  "model_id": "mobilefacenet-pretrained",
+  "name": "MobileFaceNet (Pretrained)",
+  "version": "1.0.0",
+  "architecture": "MobileFaceNet",
+  "architecture_version": "GDC",
+  "training_mode": "pretrained",
+  "source": "external_pretrained_finetuned",
+  "input_shape": [3, 112, 112],
+  "output_dim": 128,
+  "normalization": {"mean": [0.5, 0.5, 0.5], "std": [0.5, 0.5, 0.5]},
+  "output_normalized": true,
+  "note": "Frozen pretrained MobileFaceNet, fine-tuned on Tongji Palmprint via ArcFace. TIDAK diretrain."
+}

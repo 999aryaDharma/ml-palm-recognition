@@ -1,0 +1,89 @@
+# PalmNet-Lite Scratch — Canonical Training Configuration
+# Sesuai docs/03-training-and-artifacts.md §53
+# Source of truth untuk experiment pertama (baseline).
+# Ubah nilai jika eksperimen memerlukan tuning; catat alasan di trained log.
+
+run:
+  seed: 42
+  model_id: palmnet-lite-scratch
+
+model:
+  id: palmnet-lite-scratch
+  architecture: PalmNetLite
+  architecture_version: v1
+  input_channels: 3
+  input_size: 112
+  embedding_dim: 128
+  initialization: kaiming_random
+  activation: prelu
+  prelu_init: 0.25
+  expansion_ratio: 2
+  stem_channels: 32
+  stage_channels: [32, 64, 96, 128]
+  stage_repeats: [2, 3, 4, 2]
+  projection_channels: 256
+  spatial_aggregation: gdconv
+
+dataset:
+  name: Tongji Palmprint
+  split_protocol: "400-train-cross-session-val-200-unseen-test"
+  train_csv: app/ml/data/splits/train.csv
+  val_csv: app/ml/data/splits/val.csv
+  test_csv: app/ml/data/splits/test.csv
+  # Palm 1-400: train (session1) + val (session2)
+  # Palm 401-600: test enrollment (session1) + query (session2)
+
+augmentation:
+  # Training only — NO augmentation for val/test
+  rotate_deg: 15
+  crop_scale: [0.90, 1.00]
+  crop_ratio: [0.85, 1.15]
+  brightness: 0.25
+  contrast: 0.25
+  saturation: 0.15
+  hue: 0.05
+  gaussian_blur_prob: 0.2
+  gaussian_noise_prob: 0.1
+  # NO horizontal flip — kiri/kanan dianggap class berbeda
+
+phase1:
+  epochs: 40
+  batch_size: 64
+  # Fallback: 32 jika CUDA OOM
+  optimizer: adamw
+  lr: 0.001
+  weight_decay: 0.0001
+  label_smoothing: 0.1
+  warmup_epochs: 3
+  scheduler: cosine
+  min_lr: 0.000001
+  grad_clip_norm: 5.0
+  best_metric: val_accuracy
+  # Tie-break: lower val_loss
+
+phase2:
+  epochs: 50
+  batch_size: 64
+  optimizer: adamw
+  lr: 0.0001
+  weight_decay: 0.0001
+  arcface_margin: 0.30
+  arcface_scale: 32.0
+  margin_warmup_epochs: 8
+  scheduler: cosine
+  min_lr: 0.000001
+  grad_clip_norm: 5.0
+  best_metric: cosine_gap
+  # Tie-break: lower val_eer
+
+evaluation:
+  metric: cosine_similarity
+  threshold_calibration: eer
+  calibration_split: validation
+  far_targets: [0.001, 0.0001]
+
+paths:
+  checkpoint_dir: app/ml/checkpoints/palmnet-lite-scratch
+  trained_logs_dir: app/ml/artifacts/trained_logs/palmnet-lite-scratch
+  artifact_dir: app/backend/ml/models/palmnet-lite-scratch/1.0.0
+  artifact_version: "1.0.0"

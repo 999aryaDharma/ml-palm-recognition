@@ -1,0 +1,14 @@
+{
+  "model_id": "mobilefacenet-pretrained",
+  "version": "1.0.0",
+  "metric": "cosine_similarity",
+  "threshold": 0.25715944170951843,
+  "calibration_split": "tongji_test_holdout",
+  "selection": "eer",
+  "eer": 0.020493718592964803,
+  "rank1_accuracy": 0.945,
+  "roc_auc": 0.9983371783919599,
+  "tar_at_far_0.001": 0.9175,
+  "tar_at_far_0.0001": 0.836,
+  "note": "EER point threshold. Copied from original threshold.json."
+}
