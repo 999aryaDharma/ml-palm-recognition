@@ -1,24 +1,33 @@
-# Training, Evaluation, Trained Logs, and Model Artifacts
+# PalmNet-Lite Training, Evaluation, Trained Logs, and Model Artifacts
 
 ## 1. Tujuan
 
-Dokumen ini menetapkan pipeline training dan output artifact untuk dua model:
+Dokumen ini menetapkan pipeline aktif untuk **PalmNet-Lite Scratch**.
 
-- `mobilefacenet-pretrained`
-- `palmnet-lite-scratch`
+MobileFaceNet tidak termasuk pipeline training baru. Artifact MobileFaceNet yang sudah tersedia diperlakukan sebagai frozen runtime artifact dan hanya dipertahankan agar aplikasi dapat memilih dua model.
 
-Keduanya menggunakan pola logging dan artifact yang sama agar evaluasi mudah dibandingkan dan backend dapat memuat model melalui kontrak yang konsisten.
+Dengan demikian ada dua konsep yang harus dipisahkan:
 
-## 2. Prinsip Reproducibility
+```text
+PalmNet-Lite
+= research + training + evaluation + export
 
-Setiap training run harus dapat ditelusuri. Minimal informasi yang dicatat:
+MobileFaceNet
+= existing inference artifact only
+```
+
+## 2. Reproducibility PalmNet-Lite
+
+Setiap training run PalmNet-Lite harus dapat ditelusuri. Minimal informasi yang dicatat:
 
 - `model_id`;
-- `model_version` kandidat;
+- `run_id`;
 - timestamp;
 - random seed;
-- dataset split;
+- dataset dan split;
 - architecture config;
+- weight initialization;
+- augmentation config;
 - optimizer;
 - learning rate;
 - scheduler;
@@ -28,32 +37,30 @@ Setiap training run harus dapat ditelusuri. Minimal informasi yang dicatat:
 - validation metric;
 - best epoch;
 - checkpoint path;
-- final evaluation metrics.
+- final evaluation metrics;
+- catatan eksperimen jika ada perubahan penting.
 
-Tidak perlu menggunakan MLflow/W&B untuk scope tugas. File JSON/CSV dan TensorBoard lokal sudah cukup.
+Tidak perlu MLflow/W&B. File JSON/CSV dan TensorBoard lokal sudah cukup.
 
-## 3. Folder Trained Logs
+## 3. Trained Logs
+
+Active trained logs hanya dibuat oleh eksperimen PalmNet-Lite.
 
 Target struktur:
 
 ```text
 app/ml/artifacts/
 └── trained_logs/
-    ├── mobilefacenet-pretrained/
-    │   └── <run_id>/
-    │       ├── run.json
-    │       ├── history.csv
-    │       ├── metrics.json
-    │       ├── tensorboard/
-    │       └── notes.md
-    │
     └── palmnet-lite-scratch/
-        └── <run_id>/
-            ├── run.json
-            ├── history.csv
-            ├── metrics.json
-            ├── tensorboard/
-            └── notes.md
+        ├── <run_id-1>/
+        │   ├── run.json
+        │   ├── history.csv
+        │   ├── metrics.json
+        │   ├── tensorboard/
+        │   └── notes.md
+        │
+        └── <run_id-2>/
+            └── ...
 ```
 
 Contoh `run_id`:
@@ -62,9 +69,13 @@ Contoh `run_id`:
 20260812-221500-seed42
 ```
 
+Jika repository memiliki historical log MobileFaceNet, file tersebut boleh dipertahankan sebagai arsip. Namun pipeline baru **tidak boleh membuat retraining run MobileFaceNet hanya demi menyamakan struktur log**.
+
+Provenance MobileFaceNet cukup disimpan pada manifest/metadata artifact existing.
+
 ## 4. `run.json`
 
-Contoh isi:
+Contoh:
 
 ```json
 {
@@ -74,6 +85,7 @@ Contoh isi:
   "dataset": "Tongji Palmprint",
   "input_size": [3, 112, 112],
   "embedding_dim": 128,
+  "initialization": "kaiming_random",
   "training_mode": "scratch",
   "stages": ["softmax", "arcface"],
   "optimizer": "AdamW",
@@ -81,6 +93,8 @@ Contoh isi:
   "batch_size": 64
 }
 ```
+
+`run.json` harus menggambarkan config aktual. Nilai di atas hanya contoh.
 
 ## 5. `history.csv`
 
@@ -90,25 +104,31 @@ Minimal kolom:
 stage,epoch,train_loss,val_loss,val_accuracy,cosine_gap,learning_rate
 ```
 
-Kolom boleh bertambah selama konsisten.
+Kolom boleh ditambah sesuai kebutuhan, misalnya margin ArcFace atau training duration.
 
 ## 6. PalmNet-Lite Training Pipeline
 
 ### Stage A — Softmax Representation Learning
 
-PalmNet-Lite dimulai dari random initialization.
+PalmNet-Lite selalu dimulai dari random initialization.
 
 ```text
 Random Initialization
        -> PalmNet-Lite backbone
        -> temporary linear classifier
-       -> Cross Entropy
-       -> best scratch checkpoint
+       -> Cross Entropy Loss
+       -> validation
+       -> best Stage-A checkpoint
 ```
 
 Semua backbone layer trainable sejak epoch pertama.
 
-Tidak ada freeze-pretrained phase.
+Tidak ada:
+
+- external checkpoint load;
+- freeze pretrained backbone;
+- pretrained warm-up;
+- transfer learning.
 
 Baseline hyperparameter awal:
 
@@ -121,59 +141,70 @@ epoch         : 30-50
 scheduler     : cosine annealing
 ```
 
-Nilai aktual harus berasal dari config dan dicatat di trained log.
+Nilai ini harus diperlakukan sebagai starting configuration, bukan hasil final sebelum eksperimen dijalankan.
 
 ### Stage B — ArcFace Metric Learning
 
-Stage B memuat checkpoint terbaik Stage A yang dibuat sendiri.
+Jika Stage A telah menghasilkan representation yang layak, checkpoint terbaik Stage A menjadi initialization internal Stage B.
 
 ```text
-Own Stage-A Checkpoint
+Own PalmNet-Lite Stage-A Checkpoint
        -> PalmNet-Lite backbone
        -> ArcFace head
        -> metric learning
-       -> best embedding checkpoint
+       -> validation embedding metric
+       -> best Stage-B checkpoint
 ```
 
-Checkpoint Stage A adalah internal project checkpoint sehingga tidak melanggar ketentuan scratch training.
+Stage-A checkpoint tetap memenuhi prinsip scratch karena weight tersebut dihasilkan sendiri dari random initialization pada proyek ini.
 
-## 7. MobileFaceNet Training Pipeline
+Jika hasil eksperimen menunjukkan pipeline lain lebih stabil, perubahan harus dicatat pada trained logs dan `06-report-writing-source.md`.
 
-Pipeline existing pretrained tetap dipertahankan dan boleh berbeda dari scratch pipeline.
+## 7. MobileFaceNet Existing Artifact
 
-```text
-External pretrained MobileFaceNet
-       -> adaptation/fine-tuning
-       -> ArcFace
-       -> best embedding checkpoint
-```
+MobileFaceNet tidak dilatih dalam scope tugas.
 
-Training logs tetap ditulis ke struktur yang sama, tetapi `training_mode` harus menunjukkan `pretrained` atau `fine_tune` agar provenance jelas.
+Yang dilakukan hanya:
 
-## 8. Evaluation
+- mempertahankan `model.pt`/artifact existing;
+- mempertahankan threshold existing jika digunakan runtime;
+- menambahkan/merapikan manifest bila diperlukan untuk ModelRegistry;
+- melakukan smoke test load/inference saat integrasi;
+- tidak mengubah bobot model.
 
-Model final harus dievaluasi menggunakan protocol yang sama sebanyak mungkin.
+Tidak perlu:
 
-Minimal metric:
+- training script MobileFaceNet baru;
+- optimizer config MobileFaceNet;
+- new trained log;
+- checkpoint selection MobileFaceNet;
+- evaluation ulang kecuali suatu saat dibutuhkan untuk eksperimen pembanding.
+
+## 8. Evaluation PalmNet-Lite
+
+PalmNet-Lite final harus dievaluasi menggunakan protocol biometric yang sesuai.
+
+Metric minimum:
 
 - Rank-1 identification accuracy;
 - Equal Error Rate (EER);
 - ROC-AUC;
 - TAR @ FAR 0.1%;
-- TAR @ FAR 0.01% jika dataset/protocol memungkinkan;
+- TAR @ FAR 0.01% jika protocol memungkinkan;
 - mean genuine cosine similarity;
 - mean impostor cosine similarity;
+- genuine-impostor gap;
 - parameter count;
 - artifact size;
-- optional local inference latency.
+- local inference latency bila berguna untuk laporan.
 
-Hasil ditulis ke `metrics.json` milik run terkait.
+Hasil ditulis ke `metrics.json` run terkait dan kemudian diringkas ke living report source.
 
-## 9. Threshold
+Tidak perlu membuat tabel perbandingan MobileFaceNet kecuali perbandingan benar-benar diputuskan kemudian.
 
-Setiap model mempunyai threshold sendiri.
+## 9. Threshold PalmNet-Lite
 
-Threshold tidak boleh menjadi global file yang dipakai semua model.
+PalmNet-Lite mempunyai threshold hasil calibration sendiri.
 
 Contoh:
 
@@ -186,36 +217,39 @@ Contoh:
 }
 ```
 
-Nilai threshold harus berasal dari evaluation/calibration model tersebut, bukan disamakan secara manual dengan model lain.
+Nilai ini hanya contoh.
 
-## 10. Artifact Bundle
+Aturan metodologis:
 
-Artifact yang siap dipakai aplikasi mempunyai struktur:
+- calibration dilakukan pada validation/calibration data;
+- final test tidak dipakai untuk tuning threshold;
+- threshold PalmNet-Lite tidak disalin dari MobileFaceNet.
+
+## 10. Runtime Artifact Bundle
+
+Target local artifact directory:
 
 ```text
-app/ml/artifacts/models/
+app/backend/ml/models/
 ├── mobilefacenet-pretrained/
 │   └── 1.0.0/
-│       ├── model.pt
+│       ├── model.pt             # existing, frozen
 │       ├── manifest.json
-│       ├── threshold.json
-│       └── metrics.json
+│       └── threshold.json
 │
 └── palmnet-lite-scratch/
     └── 1.0.0/
-        ├── model.pt
+        ├── model.pt             # hasil export tugas
         ├── manifest.json
         ├── threshold.json
         └── metrics.json
 ```
 
-`model.pt` adalah inference-only TorchScript.
+MobileFaceNet tidak harus memiliki trained logs baru agar bisa berada di registry runtime.
 
-Classifier head dan ArcFace training head tidak perlu dibawa ke runtime artifact.
+## 11. PalmNet-Lite Manifest Contract
 
-## 11. Manifest Contract
-
-Minimal `manifest.json`:
+Minimal:
 
 ```json
 {
@@ -224,6 +258,7 @@ Minimal `manifest.json`:
   "display_name": "PalmNet-Lite (Scratch)",
   "architecture": "PalmNetLite",
   "training_mode": "scratch",
+  "initialization": "random",
   "format": "torchscript",
   "input": {
     "shape": [3, 112, 112],
@@ -244,23 +279,26 @@ Minimal `manifest.json`:
 }
 ```
 
-## 12. Generic Exporter
+MobileFaceNet existing dapat memiliki manifest lebih sederhana selama memenuhi runtime contract yang dibutuhkan registry.
 
-Exporter tidak boleh hardcode `MobileFaceNet()`.
+## 12. Exporter PalmNet-Lite
 
-Target design:
+Exporter bertanggung jawab mengubah best checkpoint menjadi inference-only TorchScript.
+
+Target flow:
 
 ```text
-model factory
-    -> load checkpoint berdasarkan model_id
+PalmNet-Lite best checkpoint
+    -> construct PalmNetLite architecture
+    -> load own trained weights
     -> inference wrapper
     -> L2 normalize
     -> torch.jit.script/trace
-    -> verification
-    -> artifact bundle
+    -> artifact verification
+    -> copy artifact bundle to backend
 ```
 
-CLI target:
+Target CLI:
 
 ```bash
 python scripts/export_artifact.py \
@@ -270,39 +308,58 @@ python scripts/export_artifact.py \
   --deploy-backend
 ```
 
+Exporter tidak perlu mendukung retraining/export-from-checkpoint MobileFaceNet kecuali benar-benar diperlukan. MobileFaceNet existing cukup diregistrasikan dari artifact yang sudah ada.
+
 ## 13. Artifact Verification
 
-Export dianggap valid jika:
+PalmNet-Lite export dianggap valid jika:
 
 - TorchScript dapat di-load ulang;
 - dummy input `(1,3,112,112)` diterima;
-- output `(1,128)`;
+- output shape `(1,128)`;
 - output tidak mengandung NaN/Inf;
 - L2 norm mendekati 1;
 - output TorchScript mendekati eager model dalam toleransi numerik;
-- manifest cocok dengan runtime output;
+- manifest sesuai dengan runtime output;
 - threshold dan metrics tersedia.
 
-## 14. Backend Deployment untuk Local App
+MobileFaceNet existing cukup melalui smoke test runtime:
 
-Untuk scope lokal, `--deploy-backend` cukup melakukan copy artifact bundle ke:
+- artifact dapat di-load;
+- menerima shared input contract;
+- menghasilkan 128-D embedding;
+- tetap berfungsi pada app.
 
-```text
-app/backend/ml/models/
-```
+## 14. Trained Logs vs Runtime Artifact
 
-Tidak diperlukan artifact server, registry remote, release service, atau object storage.
-
-## 15. Trained Logs vs Runtime Artifact
-
-Keduanya harus dipisahkan secara konseptual:
+Pemisahan konsep:
 
 ```text
-trained_logs/
-    = bukti proses eksperimen dan training
+trained_logs/palmnet-lite-scratch/
+    = bukti proses penelitian dan training PalmNet-Lite
 
-models/<model>/<version>/
-    = artifact final untuk aplikasi
+backend/ml/models/mobilefacenet-pretrained/
+    = frozen existing runtime artifact
+
+backend/ml/models/palmnet-lite-scratch/
+    = final runtime artifact hasil tugas
 ```
 
-Jangan menaruh seluruh checkpoint optimizer/training state ke backend. Backend hanya membutuhkan inference artifact, manifest, threshold, dan optional metrics.
+Jangan membuat training data palsu/placeholder untuk MobileFaceNet hanya agar terlihat simetris. Dokumentasi harus mencerminkan provenance yang sebenarnya.
+
+## 15. Living Report Update Rule
+
+Setelah eksperimen penting, informasi berikut harus dipindahkan/diringkas ke `06-report-writing-source.md`:
+
+- konfigurasi run;
+- alasan perubahan hyperparameter;
+- best epoch;
+- training curve summary;
+- final metrics;
+- model parameter count;
+- artifact size;
+- inference test;
+- hasil integrasi aplikasi;
+- keterbatasan yang ditemukan.
+
+Dengan demikian trained logs menjadi sumber bukti teknis, sedangkan `06-report-writing-source.md` menjadi sumber narasi ilmiah yang terus diperbarui.
