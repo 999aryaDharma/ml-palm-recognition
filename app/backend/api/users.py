@@ -9,10 +9,14 @@ from schemas.users import (
     UserResponse,
     DeleteUserResponse,
     TemplateCreateResponse,
+    MultiModelTemplateCreateResponse,
+    MultiModelTemplateItem,
     VerifyReadyResponse,
+    VerifyReadyAllResponse,
+    ModelReadinessResponse,
     UserProfileRequest,
     UserProfileResponse,
-    WalletResponse
+    WalletResponse,
 )
 from db.models import UserProfile, Wallet
 from services.image_service import upload_to_pil
@@ -26,10 +30,10 @@ def _to_user_response(user) -> UserResponse:
     if user.profile:
         profile = UserProfileResponse(
             nik=user.profile.nik,
-            kelas_jabatan=user.profile.kelas_jabatan
+            kelas_jabatan=user.profile.kelas_jabatan,
         )
     wallet = None
-    if getattr(user, 'wallet', None):
+    if getattr(user, "wallet", None):
         wallet = WalletResponse(balance=user.wallet.balance)
 
     return UserResponse(
@@ -38,8 +42,49 @@ def _to_user_response(user) -> UserResponse:
         enrolled_at=user.enrolled_at,
         template_count=len(user.templates or []),
         profile=profile,
-        wallet=wallet
+        wallet=wallet,
     )
+
+
+def _quality_error(code: str) -> HTTPException:
+    messages = {
+        "detection_failed": "Telapak belum terbaca. Pastikan tangan terlihat penuh.",
+        "no_hand_detected": "Tunjukkan telapak tangan ke kamera.",
+        "roi_extraction_failed": "Posisikan telapak di tengah frame.",
+        "image_too_blurry": "Gambar terlalu blur. Tahan tangan diam sebentar.",
+        "backend_not_ready": "Model biometrik belum siap.",
+    }
+    return HTTPException(
+        status_code=400,
+        detail={"error": code, "message": messages.get(code, "Gagal memproses template.")},
+    )
+
+
+def _refresh_model_caches(request: Request, model_pairs: set[tuple[str, str]]) -> None:
+    cache = getattr(request.app.state, "cache", None)
+    if cache is None:
+        return
+
+    try:
+        from db.database import SessionLocal
+
+        fresh_db = SessionLocal()
+        try:
+            for model_id, model_version in model_pairs:
+                cache.refresh(
+                    fresh_db,
+                    model_id=model_id,
+                    model_version=model_version,
+                )
+        finally:
+            fresh_db.close()
+    except Exception as exc:
+        import logging
+
+        logging.getLogger("palm-api").error(
+            "Cache refresh failed after template upload: %s",
+            exc,
+        )
 
 
 @router.post("/{user_id}/profile", response_model=UserResponse)
@@ -47,7 +92,10 @@ def add_profile(user_id: int, payload: UserProfileRequest, db: Session = Depends
     repo = UserRepository(db)
     user = repo.get(user_id)
     if not user:
-        raise HTTPException(status_code=404, detail={"error": "user_not_found", "message": "User tidak ditemukan."})
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "user_not_found", "message": "User tidak ditemukan."},
+        )
 
     if not user.profile:
         user.profile = UserProfile(user_id=user_id)
@@ -69,14 +117,17 @@ def create_user(payload: UserCreateRequest, db: Session = Depends(get_db)):
     repo = UserRepository(db)
 
     existing_users = repo.list_all()
-    for u in existing_users:
-        if u.name.strip().lower() == payload.name.strip().lower():
-            if len(u.templates or []) == 0:
-                repo.delete(u.id)
+    for user in existing_users:
+        if user.name.strip().lower() == payload.name.strip().lower():
+            if len(user.templates or []) == 0:
+                repo.delete(user.id)
             else:
                 raise HTTPException(
                     status_code=409,
-                    detail={"error": "user_exists", "message": f"Pengguna dengan nama '{payload.name}' sudah terdaftar."}
+                    detail={
+                        "error": "user_exists",
+                        "message": f"Pengguna dengan nama '{payload.name}' sudah terdaftar.",
+                    },
                 )
 
     user = repo.create(payload.name)
@@ -89,11 +140,10 @@ def create_user(payload: UserCreateRequest, db: Session = Depends(get_db)):
     return _to_user_response(user)
 
 
-
 @router.get("", response_model=list[UserResponse])
 def list_users(db: Session = Depends(get_db)):
     repo = UserRepository(db)
-    return [_to_user_response(u) for u in repo.list_all()]
+    return [_to_user_response(user) for user in repo.list_all()]
 
 
 @router.get("/{user_id}", response_model=UserResponse)
@@ -125,6 +175,58 @@ def delete_user(user_id: int, request: Request, db: Session = Depends(get_db)):
     return DeleteUserResponse(deleted=True)
 
 
+@router.post("/{user_id}/templates/multi", response_model=MultiModelTemplateCreateResponse)
+async def add_template_multi(
+    user_id: int,
+    request: Request,
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Create one template per active registry model from one captured frame."""
+    user_repo = UserRepository(db)
+    if not user_repo.get(user_id):
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "user_not_found", "message": "User tidak ditemukan."},
+        )
+
+    pil_image = await upload_to_pil(image, request.app.state.settings.max_upload_mb)
+
+    try:
+        service = EnrollmentService(request.app.state)
+        model_results, quality_score, quality_status = service.process_template_all(pil_image)
+    except ValueError as exc:
+        raise _quality_error(str(exc))
+
+    template_repo = TemplateRepository(db)
+    templates = template_repo.create_many(
+        user_id=user_id,
+        items=model_results,
+        quality_score=quality_score,
+    )
+
+    pairs = {(item["model_id"], item["model_version"]) for item in model_results}
+    _refresh_model_caches(request, pairs)
+
+    return MultiModelTemplateCreateResponse(
+        quality_score=round(quality_score, 4),
+        quality_status=quality_status,
+        model_count=len(templates),
+        templates=[
+            MultiModelTemplateItem(
+                template_id=template.id,
+                model_id=template.model_id,
+                model_version=template.model_version,
+                embedding_norm=round(
+                    float(np.linalg.norm(model_results[index]["embedding"])),
+                    4,
+                ),
+            )
+            for index, template in enumerate(templates)
+        ],
+    )
+
+
 @router.post("/{user_id}/templates", response_model=TemplateCreateResponse)
 async def add_template(
     user_id: int,
@@ -145,24 +247,19 @@ async def add_template(
 
     try:
         service = EnrollmentService(request.app.state, model_id=model_id)
-        embedding, quality_score, quality_status, target_model_id, target_version = service.process_template(pil_image)
+        embedding, quality_score, _quality_status, target_model_id, target_version = (
+            service.process_template(pil_image)
+        )
     except KeyError:
         raise HTTPException(
             status_code=404,
-            detail={"error": "model_not_found", "message": f"Model '{model_id}' tidak ditemukan di registry."}
+            detail={
+                "error": "model_not_found",
+                "message": f"Model '{model_id}' tidak ditemukan di registry.",
+            },
         )
     except ValueError as exc:
-        code = str(exc)
-        messages = {
-            "detection_failed": "Telapak belum terbaca. Pastikan tangan terlihat penuh.",
-            "no_hand_detected": "Tunjukkan telapak tangan ke kamera.",
-            "roi_extraction_failed": "Posisikan telapak di tengah frame.",
-            "image_too_blurry": "Gambar terlalu blur. Tahan tangan diam sebentar.",
-        }
-        raise HTTPException(
-            status_code=400,
-            detail={"error": code, "message": messages.get(code, "Gagal memproses template.")},
-        )
+        raise _quality_error(str(exc))
 
     template_repo = TemplateRepository(db)
     template = template_repo.create(
@@ -173,24 +270,62 @@ async def add_template(
         model_version=target_version,
     )
 
-    # Refresh cache for this specific model space
-    cache = getattr(request.app.state, "cache", None)
-    if cache is not None:
-        try:
-            from db.database import SessionLocal
-            fresh_db = SessionLocal()
-            try:
-                cache.refresh(fresh_db, model_id=target_model_id, model_version=target_version)
-            finally:
-                fresh_db.close()
-        except Exception as exc:
-            import logging
-            logging.getLogger("palm-api").error("Cache refresh failed after template upload: %s", exc)
+    _refresh_model_caches(request, {(target_model_id, target_version)})
 
     return TemplateCreateResponse(
         template_id=template.id,
         quality_score=round(quality_score, 4),
         embedding_norm=round(float(np.linalg.norm(embedding)), 4),
+    )
+
+
+@router.get("/{user_id}/verify-ready-all", response_model=VerifyReadyAllResponse)
+def verify_ready_all(
+    user_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Return readiness per active model. All active models must be ready."""
+    repo = UserRepository(db)
+    user = repo.get(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "user_not_found", "message": "User tidak ditemukan."},
+        )
+
+    registry = getattr(request.app.state, "registry", None)
+    available = registry.list_available() if registry else []
+    if not available:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "backend_not_ready", "message": "Model registry belum siap."},
+        )
+
+    required = request.app.state.settings.min_template_per_user
+    template_repo = TemplateRepository(db)
+    models: dict[str, ModelReadinessResponse] = {}
+
+    for model_info in available:
+        model_id = model_info["id"]
+        runtime = registry.get(model_id)
+        count = len(
+            template_repo.list_by_user(
+                user_id,
+                model_id=runtime.model_id,
+                model_version=runtime.version,
+            )
+        )
+        models[model_id] = ModelReadinessResponse(
+            model_version=runtime.version,
+            template_count=count,
+            ready=count >= required,
+        )
+
+    return VerifyReadyAllResponse(
+        ready=all(item.ready for item in models.values()),
+        required=required,
+        models=models,
     )
 
 
@@ -211,12 +346,16 @@ def verify_ready(
         )
 
     template_repo = TemplateRepository(db)
-    templates = template_repo.list_by_user(user_id, model_id=model_id, model_version=model_version)
+    templates = template_repo.list_by_user(
+        user_id,
+        model_id=model_id,
+        model_version=model_version,
+    )
     template_count = len(templates)
     required_templates = 5
 
     return VerifyReadyResponse(
         ready=(template_count >= required_templates),
         template_count=template_count,
-        required=required_templates
+        required=required_templates,
     )
