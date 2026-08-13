@@ -1,11 +1,11 @@
 """
-Enrollment Service Module
-Handles biometric template enrollment using model_id provenance.
-Strictly hard-fails with KeyError if an explicit invalid model_id is requested.
+Enrollment Service Module.
+
+Shared capture preprocessing is performed once, while embeddings remain
+model-specific. Single-model enrollment is preserved for backward compatibility.
 """
 from PIL import Image
 import numpy as np
-import time
 
 
 class EnrollmentService:
@@ -31,18 +31,13 @@ class EnrollmentService:
             self.model_version = self.runtime.version
             self.recognizer = self.runtime
         else:
+            self.runtime = None
             self.recognizer = getattr(app_state, "recognizer", None)
             self.model_id = target_model_id
             self.model_version = "1.0.0"
 
-    def process_template(self, image: Image.Image) -> tuple[np.ndarray, float, str, str, str]:
-        """Process image for enrollment.
-
-        Returns:
-            Tuple of (embedding, quality_score, quality_status, model_id, model_version)
-        """
-        start_time = time.time()
-
+    def prepare_sample(self, image: Image.Image) -> tuple[Image.Image, float, str]:
+        """Run shared detection, ROI extraction, and quality assessment once."""
         if self.detector is None:
             raise ValueError("detection_failed")
 
@@ -51,6 +46,7 @@ class EnrollmentService:
             raise ValueError("no_hand_detected")
 
         from ml.roi import extract_palm_roi
+
         landmarks = detection_result.get("landmarks")
         if not landmarks:
             raise ValueError("roi_extraction_failed")
@@ -59,6 +55,15 @@ class EnrollmentService:
         if palm_roi is None:
             raise ValueError("roi_extraction_failed")
 
+        from ml.quality import assess_image_quality
+
+        quality_status, quality_score = assess_image_quality(image, detection_result)
+        return palm_roi, quality_score, quality_status
+
+    def process_template(self, image: Image.Image) -> tuple[np.ndarray, float, str, str, str]:
+        """Process one image for one requested model."""
+        palm_roi, quality_score, quality_status = self.prepare_sample(image)
+
         if self.recognizer is None:
             raise ValueError("detection_failed")
 
@@ -66,7 +71,36 @@ class EnrollmentService:
         if embedding is None:
             raise ValueError("image_too_blurry")
 
-        from ml.quality import assess_image_quality
-        quality_status, quality_score = assess_image_quality(image, detection_result)
-
         return embedding, quality_score, quality_status, self.model_id, self.model_version
+
+    def process_template_all(self, image: Image.Image) -> tuple[list[dict], float, str]:
+        """Create one embedding per active registry model from one shared ROI.
+
+        No persistence happens here. If any active runtime fails, the whole capture
+        is rejected so callers can keep multi-model persistence atomic.
+        """
+        if not self.registry:
+            raise ValueError("backend_not_ready")
+
+        available = self.registry.list_available()
+        if not available:
+            raise ValueError("backend_not_ready")
+
+        palm_roi, quality_score, quality_status = self.prepare_sample(image)
+        results: list[dict] = []
+
+        for model_info in available:
+            model_id = model_info["id"]
+            runtime = self.registry.get(model_id)
+            embedding = runtime.extract_embedding(palm_roi)
+            if embedding is None:
+                raise ValueError("image_too_blurry")
+            results.append(
+                {
+                    "embedding": embedding,
+                    "model_id": runtime.model_id,
+                    "model_version": runtime.version,
+                }
+            )
+
+        return results, quality_score, quality_status
