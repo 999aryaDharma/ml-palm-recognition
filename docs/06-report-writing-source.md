@@ -21,9 +21,11 @@ Gunakan checklist ini setiap kali progres berubah:
 - [x] parameter count aktual sudah dicatat (393,472 params);
 - [x] scratch initialization implementation selesai;
 - [x] local inference & preprocessing ROI berhasil;
-- [x] ModelRegistry berhasil memuat PalmNet-Lite dan MobileFaceNet;
+- [x] ModelRegistry/runtime architecture sudah mendukung PalmNet-Lite;
+- [ ] final trained PalmNet-Lite artifact berhasil dimuat ModelRegistry;
 - [x] frontend dapat memilih model per request pada scanner dan enrollment;
 - [x] dataset dan split aktual (Phase 0 PASSED: 4000 train, 4000 val, 4000 test images; 400 train identities, 400 val identities, 200 test identities);
+
 - [ ] hyperparameter run terbaik;
 - [ ] training curve;
 - [ ] best epoch;

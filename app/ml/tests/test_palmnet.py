@@ -261,10 +261,11 @@ def test_identity_isolation_hard_fail():
 def test_duplicate_path_hard_fail(tmp_path):
     """Phase 0 raises ValueError if duplicate paths exist within split."""
     from scripts.train_palmnet_lite import run_phase0_sanity
+    from PIL import Image
 
-    # Create dummy image file
+    # Create valid PIL image file
     img_file = tmp_path / "img1.png"
-    img_file.write_bytes(b"dummy")
+    Image.new("RGB", (112, 112), color="red").save(img_file)
 
     # Create CSV with duplicate path
     train_csv = tmp_path / "train_dup.csv"
@@ -291,6 +292,79 @@ def test_duplicate_path_hard_fail(tmp_path):
         run_phase0_sanity(bad_config, torch.device("cpu"))
     assert "duplikat" in str(exc_info.value).lower()
     print("  [PASS] test_duplicate_path_hard_fail")
+
+
+def test_phase0_corrupt_image_hard_fail(tmp_path):
+    """Phase 0 raises ValueError if any image file is corrupt/unreadable by PIL."""
+    from scripts.train_palmnet_lite import run_phase0_sanity
+    from PIL import Image
+
+    # Valid image for train & val
+    img_valid = tmp_path / "valid.png"
+    Image.new("RGB", (112, 112), color="blue").save(img_valid)
+
+    # Corrupt image for test split
+    img_corrupt = tmp_path / "corrupt.png"
+    img_corrupt.write_bytes(b"INVALID_HEADER_NON_IMAGE_BYTES_12345")
+
+    train_csv = tmp_path / "train.csv"
+    train_csv.write_text(f"path,label,palm_id,session\n{img_valid},0,p1,1\n")
+    val_csv = tmp_path / "val.csv"
+    val_csv.write_text(f"path,label,palm_id,session\n{img_valid},0,p1,2\n")
+    test_csv = tmp_path / "test.csv"
+    test_csv.write_text(f"path,label,palm_id,session\n{img_corrupt},0,p2,1\n")
+
+    cfg = {
+        "dataset": {
+            "train_csv": str(train_csv),
+            "val_csv": str(val_csv),
+            "test_csv": str(test_csv),
+        }
+    }
+
+    with pytest.raises(ValueError) as exc_info:
+        run_phase0_sanity(cfg, torch.device("cpu"))
+    assert "rusak" in str(exc_info.value).lower() or "tidak dapat dibaca" in str(exc_info.value).lower()
+    print("  [PASS] test_phase0_corrupt_image_hard_fail")
+
+
+def test_phase0_valid_images_readability_count(tmp_path):
+    """Phase 0 reports unreadable_files == 0 when all images are valid."""
+    from scripts.train_palmnet_lite import run_phase0_sanity
+    from PIL import Image
+
+    # Create valid images for train (session 1), val (session 2), test (sessions 1 & 2)
+    img_train1 = tmp_path / "train1.png"
+    img_train2 = tmp_path / "train2.png"
+    img_val = tmp_path / "val1.png"
+    img_test1 = tmp_path / "test1.png"
+    img_test2 = tmp_path / "test2.png"
+
+    for img_p in [img_train1, img_train2, img_val, img_test1, img_test2]:
+        Image.new("RGB", (112, 112), color="green").save(img_p)
+
+    train_csv = tmp_path / "train.csv"
+    train_csv.write_text(f"path,label,palm_id,session\n{img_train1},0,p1,1\n{img_train2},0,p1,1\n")
+    val_csv = tmp_path / "val.csv"
+    val_csv.write_text(f"path,label,palm_id,session\n{img_val},0,p1,2\n")
+    test_csv = tmp_path / "test.csv"
+    test_csv.write_text(f"path,label,palm_id,session\n{img_test1},0,p2,1\n{img_test2},0,p2,2\n")
+
+    cfg = {
+        "dataset": {
+            "train_csv": str(train_csv),
+            "val_csv": str(val_csv),
+            "test_csv": str(test_csv),
+        }
+    }
+
+    summary = run_phase0_sanity(cfg, torch.device("cpu"), run_dir=tmp_path)
+    assert summary["unreadable_files"] == 0
+    assert summary["missing_files"] == 0
+    assert summary["status"] == "passed"
+    print("  [PASS] test_phase0_valid_images_readability_count")
+
+
 
 
 def test_evaluate_phase1_gate():
@@ -583,6 +657,8 @@ def run_all_tests():
         ("Data: no flip policy", test_no_flip_policy),
         ("Data: identity isolation hard fail", test_identity_isolation_hard_fail),
         ("Data: duplicate path hard fail", test_duplicate_path_hard_fail),
+        ("Data: corrupt image readability hard fail", test_phase0_corrupt_image_hard_fail),
+        ("Data: valid image readability count", test_phase0_valid_images_readability_count),
         ("Training: phase1 gate evaluation", test_evaluate_phase1_gate),
         ("Data: missing required columns fail", test_missing_required_columns_fails),
         ("Training: phase1 minibatch", test_phase1_minibatch),
@@ -594,6 +670,7 @@ def run_all_tests():
         ("Cache: separates embedding spaces", test_cache_separates_embedding_spaces),
         ("Registry: mobilefacenet load", test_mobilefacenet_registry_load_if_artifact_present),
     ]
+
 
     import tempfile
     import inspect

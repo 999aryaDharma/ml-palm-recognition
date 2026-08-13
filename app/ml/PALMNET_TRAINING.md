@@ -19,29 +19,41 @@ python -m scripts.train_palmnet_lite --config configs/palmnet_lite_scratch.yaml
 # Only Phase 1 (Softmax warmup)
 python -m scripts.train_palmnet_lite --config configs/palmnet_lite_scratch.yaml --phase 1
 
-# Only Phase 2 (ArcFace, dari checkpoint Phase 1 yang sudah ada)
+# Only Phase 2 (ArcFace, dari checkpoint Phase 1 run-specific)
 python -m scripts.train_palmnet_lite --config configs/palmnet_lite_scratch.yaml --phase 2 \
-  --phase1-checkpoint checkpoints/palmnet-lite-scratch/checkpoint_phase1_best.pth
+  --phase1-checkpoint checkpoints/palmnet-lite-scratch/<run_id>/checkpoint_phase1_best.pth
+```
+
+## Checkpoint Directory Structure
+
+Training output checkpoints are isolated per run directory:
+```
+checkpoints/palmnet-lite-scratch/<run_id>/
+    checkpoint_phase1_best.pth
+    checkpoint_phase1_last.pth
+    checkpoint_phase2_best.pth
+    checkpoint_phase2_last.pth
 ```
 
 ## Evaluate
 
 ```bash
 python -m scripts.evaluate_palmnet_lite \
-  --checkpoint checkpoints/palmnet-lite-scratch/checkpoint_phase2_best.pth \
-  --run-id <run_id dari training log>
+  --checkpoint checkpoints/palmnet-lite-scratch/<run_id>/checkpoint_phase2_best.pth \
+  --run-id <run_id>
 ```
 
 ## Export ke Backend
 
 ```bash
 python -m scripts.export_palmnet_lite \
-  --checkpoint checkpoints/palmnet-lite-scratch/checkpoint_phase2_best.pth \
+  --checkpoint checkpoints/palmnet-lite-scratch/<run_id>/checkpoint_phase2_best.pth \
   --threshold artifacts/trained_logs/palmnet-lite-scratch/<run_id>/threshold.json \
   --metrics artifacts/trained_logs/palmnet-lite-scratch/<run_id>/metrics.json \
   --version 1.0.0 \
   --deploy-backend
 ```
+
 
 ---
 

@@ -82,9 +82,13 @@ def run_phase0_sanity(config: dict, device: torch.device, run_dir: Path | None =
         if missing_cols:
             raise ValueError(f"Phase 0 FAIL: {name}.csv missing kolom wajib: {missing_cols}")
 
-    # 3. Check ALL image paths exist on disk (Req 8)
+    # 3. Check ALL image paths exist on disk AND are readable by PIL (Req 1)
+    from PIL import Image
     missing_files = 0
+    unreadable_files = 0
     missing_samples = []
+    unreadable_samples = []
+
     for df, name in [(train_df, "train"), (val_df, "val"), (test_df, "test")]:
         for p_str in df["path"]:
             p = resolve_ml_path(p_str)
@@ -92,11 +96,25 @@ def run_phase0_sanity(config: dict, device: torch.device, run_dir: Path | None =
                 missing_files += 1
                 if len(missing_samples) < 5:
                     missing_samples.append(str(p))
+            else:
+                try:
+                    with Image.open(p) as img:
+                        img.verify()
+                except Exception as e:
+                    unreadable_files += 1
+                    if len(unreadable_samples) < 5:
+                        unreadable_samples.append(f"{p} ({e})")
 
     if missing_files > 0:
         raise FileNotFoundError(
             f"Phase 0 FAIL: Ditemukan {missing_files} file gambar tidak ada di disk. Contoh: {missing_samples}"
         )
+
+    if unreadable_files > 0:
+        raise ValueError(
+            f"Phase 0 FAIL: Ditemukan {unreadable_files} file gambar rusak/tidak dapat dibaca PIL. Contoh: {unreadable_samples}"
+        )
+
 
     # 4. Duplicate paths within split and across splits (Req 9.A & 9.B)
     duplicate_paths = 0
@@ -155,10 +173,10 @@ def run_phase0_sanity(config: dict, device: torch.device, run_dir: Path | None =
     train_ds = PalmDataset(train_csv, transform=get_train_transform())
     val_ds   = PalmDataset(val_csv,   transform=get_val_transform())
 
-    batch_size = config.get("phase1", {}).get("batch_size", 64)
-    loader_tr, _, num_classes = build_dataloaders(
-        train_csv, val_csv, batch_size=min(batch_size, 8), num_workers=0
-    )
+    batch_size = max(1, min(len(train_df), 8))
+    loader_tr = torch.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=False)
+    num_classes = int(train_df["label"].nunique())
+
     images, labels = next(iter(loader_tr))
     if images.shape[1:] != (3, 112, 112):
         raise ValueError(f"Phase 0 FAIL: Input tensor shape {images.shape[1:]} != (3, 112, 112)")
@@ -208,8 +226,9 @@ def run_phase0_sanity(config: dict, device: torch.device, run_dir: Path | None =
         "cross_split_duplicates": cross_split_duplicates,
         "identity_overlap_count": identity_overlap_count,
         "missing_files": missing_files,
-        "unreadable_files": 0,
+        "unreadable_files": unreadable_files,
         "protocol_valid": True,
+
         "forward_smoke_ok": True,
         "backward_smoke_ok": True,
     }
