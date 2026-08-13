@@ -2,7 +2,6 @@ import io
 import numpy as np
 from sqlalchemy.orm import Session, joinedload
 from db.models import User, Template, DemoLog
-from datetime import datetime
 import json
 
 
@@ -77,6 +76,33 @@ class TemplateRepository:
         self.db.commit()
         self.db.refresh(template)
         return template
+
+    def create_many(
+        self,
+        user_id: int,
+        items: list[dict],
+        quality_score: float,
+    ) -> list[Template]:
+        """Persist all model embeddings from one capture in one transaction."""
+        templates = [
+            Template(
+                user_id=user_id,
+                model_id=item["model_id"],
+                model_version=item["model_version"],
+                embedding=embedding_to_blob(item["embedding"]),
+                quality_score=quality_score,
+            )
+            for item in items
+        ]
+        try:
+            self.db.add_all(templates)
+            self.db.commit()
+            for template in templates:
+                self.db.refresh(template)
+            return templates
+        except Exception:
+            self.db.rollback()
+            raise
 
     def list_by_user(
         self,
