@@ -26,7 +26,7 @@ class UserProfile(Base):
     user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False, index=True)
     nik = Column(String(50), nullable=True)
     kelas_jabatan = Column(String(100), nullable=True)
-    
+
     user = relationship("User", back_populates="profile")
 
 
@@ -36,7 +36,7 @@ class Wallet(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False, index=True)
     balance = Column(Float, default=0.0, nullable=False)
-    
+
     user = relationship("User", back_populates="wallet")
     transactions = relationship("WalletTransaction", back_populates="wallet", cascade="all, delete-orphan")
 
@@ -47,7 +47,7 @@ class WalletTransaction(Base):
     id = Column(Integer, primary_key=True, index=True)
     wallet_id = Column(Integer, ForeignKey("wallets.id"), nullable=False, index=True)
     amount = Column(Float, nullable=False)
-    transaction_type = Column(String(20), nullable=False) # e.g., 'topup', 'payment'
+    transaction_type = Column(String(20), nullable=False)
     description = Column(String(255), nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -59,6 +59,8 @@ class Template(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    model_id = Column(String(80), nullable=False, default="mobilefacenet-pretrained", index=True)
+    model_version = Column(String(20), nullable=False, default="1.0.0", index=True)
     embedding = Column(LargeBinary, nullable=False)
     quality_score = Column(Float, default=0.0, nullable=False)
     captured_at = Column(DateTime, default=datetime.utcnow, nullable=False)

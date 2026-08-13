@@ -1,15 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
 from sqlalchemy.orm import Session
 import numpy as np
 
 from db.database import get_db
 from db.repositories import UserRepository, TemplateRepository
-from schemas.users import UserCreateRequest, UserResponse, DeleteUserResponse, TemplateCreateResponse
-from services.image_service import upload_to_pil
 from schemas.users import (
-    UserCreateRequest, 
-    UserResponse, 
-    DeleteUserResponse, 
+    UserCreateRequest,
+    UserResponse,
+    DeleteUserResponse,
     TemplateCreateResponse,
     VerifyReadyResponse,
     UserProfileRequest,
@@ -17,6 +15,8 @@ from schemas.users import (
     WalletResponse
 )
 from db.models import UserProfile, Wallet
+from services.image_service import upload_to_pil
+from services.enrollment_service import EnrollmentService
 
 router = APIRouter()
 
@@ -41,6 +41,7 @@ def _to_user_response(user) -> UserResponse:
         wallet=wallet
     )
 
+
 @router.post("/{user_id}/profile", response_model=UserResponse)
 def add_profile(user_id: int, payload: UserProfileRequest, db: Session = Depends(get_db)):
     repo = UserRepository(db)
@@ -48,44 +49,36 @@ def add_profile(user_id: int, payload: UserProfileRequest, db: Session = Depends
     if not user:
         raise HTTPException(status_code=404, detail={"error": "user_not_found", "message": "User tidak ditemukan."})
 
-    # Create or update profile
     if not user.profile:
         user.profile = UserProfile(user_id=user_id)
     user.profile.nik = payload.nik
     user.profile.kelas_jabatan = payload.kelas_jabatan
 
-    # Create or update wallet
     if not user.wallet:
         user.wallet = Wallet(user_id=user_id)
     user.wallet.balance = payload.initial_balance
 
     db.commit()
     db.refresh(user)
-    
+
     return _to_user_response(user)
 
 
 @router.post("", response_model=UserResponse)
 def create_user(payload: UserCreateRequest, db: Session = Depends(get_db)):
     repo = UserRepository(db)
-    
-    # ── MENCEGAH DUPLIKAT NAMA & CLEANUP GHOST USER ──
+
     existing_users = repo.list_all()
     for u in existing_users:
-        # Pengecekan tidak sensitif terhadap huruf besar/kecil dan spasi
         if u.name.strip().lower() == payload.name.strip().lower():
-            # Jika user ada tapi jumlah template 0 (kemungkinan sisa error enrollment sebelumnya)
-            # Hapus user lama yang cacat agar tidak nyangkut
             if len(u.templates or []) == 0:
                 repo.delete(u.id)
             else:
-                # Jika user ada dan VALID, tolak dengan HTTP 409 Conflict
                 raise HTTPException(
                     status_code=409,
                     detail={"error": "user_exists", "message": f"Pengguna dengan nama '{payload.name}' sudah terdaftar."}
                 )
-                
-    # Buat user baru jika aman
+
     user = repo.create(payload.name)
     user.templates = []
     return _to_user_response(user)
@@ -119,7 +112,6 @@ def delete_user(user_id: int, request: Request, db: Session = Depends(get_db)):
             detail={"error": "user_not_found", "message": "User tidak ditemukan."},
         )
 
-    # ── Fix: refresh cache so deleted user is no longer matched ────────────
     cache = getattr(request.app.state, "cache", None)
     if cache is not None:
         cache.refresh(db)
@@ -132,13 +124,10 @@ async def add_template(
     user_id: int,
     request: Request,
     image: UploadFile = File(...),
+    model_id: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
-    """
-    Upload one palm frame as a biometric template.
-    Runs detection → ROI → embedding pipeline.
-    Returns 400 with error code if quality gate fails.
-    """
+    """Upload one palm frame as a biometric template using model_id provenance."""
     user_repo = UserRepository(db)
     if not user_repo.get(user_id):
         raise HTTPException(
@@ -148,67 +137,45 @@ async def add_template(
 
     pil_image = await upload_to_pil(image, request.app.state.settings.max_upload_mb)
 
-    # ── Run ML pipeline ───────────────────────────────────────────────────────
-    detector   = getattr(request.app.state, "detector",   None)
-    recognizer = getattr(request.app.state, "recognizer", None)
+    service = EnrollmentService(request.app.state, model_id=model_id)
 
-    if detector is None or recognizer is None:
-        raise HTTPException(
-            status_code=503,
-            detail={"error": "backend_not_ready", "message": "ML model belum dimuat. Tunggu server selesai startup."},
-        )
-
-    detection = detector.detect(pil_image)
-    if detection is None:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "detection_failed",
-                "message": "Telapak belum terbaca. Pastikan tangan terlihat penuh dan menghadap kamera.",
-            },
-        )
-
-    from ml.roi import extract_palm_roi
-    roi = extract_palm_roi(pil_image, detection["landmarks"])
-    if roi is None:
+    try:
+        embedding, quality_score, quality_status, target_model_id, target_version = service.process_template(pil_image)
+    except ValueError as exc:
+        code = str(exc)
+        messages = {
+            "detection_failed": "Telapak belum terbaca. Pastikan tangan terlihat penuh.",
+            "no_hand_detected": "Tunjukkan telapak tangan ke kamera.",
+            "roi_extraction_failed": "Posisikan telapak di tengah frame.",
+            "image_too_blurry": "Gambar terlalu blur. Tahan tangan diam sebentar.",
+        }
         raise HTTPException(
             status_code=400,
-            detail={
-                "error": "roi_extraction_failed",
-                "message": "Area telapak gagal diekstrak. Posisikan telapak di tengah frame.",
-            },
+            detail={"error": code, "message": messages.get(code, "Gagal memproses template.")},
         )
-
-    embedding = recognizer.extract_embedding(roi)
-    if embedding is None:
-        raise HTTPException(
-            status_code=400,
-            detail={"error": "image_too_blurry", "message": "Gambar terlalu blur. Tahan tangan diam sebentar."},
-        )
-
-    quality_score = float(min(1.0, np.linalg.norm(embedding)))
 
     template_repo = TemplateRepository(db)
-    template = template_repo.create(user_id, embedding, quality_score)
+    template = template_repo.create(
+        user_id=user_id,
+        embedding=embedding,
+        quality_score=quality_score,
+        model_id=target_model_id,
+        model_version=target_version,
+    )
 
-    # ── Refresh cache dengan session BARU (bukan session request) ─────────────────
-    # Session request (db) masih hold transaction yang baru commit.
-    # Menggunakan session yang sama untuk cache.refresh bisa menyebabkan
-    # SQLite lock, terutama saat 5 template diupload berurutan.
+    # Refresh cache for this specific model space
     cache = getattr(request.app.state, "cache", None)
     if cache is not None:
         try:
             from db.database import SessionLocal
             fresh_db = SessionLocal()
             try:
-                cache.refresh(fresh_db)
+                cache.refresh(fresh_db, model_id=target_model_id, model_version=target_version)
             finally:
                 fresh_db.close()
         except Exception as exc:
             import logging
-            logging.getLogger("palm-api").error(
-                "Cache refresh failed after template upload: %s", exc
-            )
+            logging.getLogger("palm-api").error("Cache refresh failed after template upload: %s", exc)
 
     return TemplateCreateResponse(
         template_id=template.id,
@@ -216,21 +183,27 @@ async def add_template(
         embedding_norm=round(float(np.linalg.norm(embedding)), 4),
     )
 
+
 @router.get("/{user_id}/verify-ready", response_model=VerifyReadyResponse)
-def verify_ready(user_id: int, db: Session = Depends(get_db)):
+def verify_ready(
+    user_id: int,
+    model_id: str | None = None,
+    db: Session = Depends(get_db),
+):
     repo = UserRepository(db)
     user = repo.get(user_id)
-    
+
     if not user:
         raise HTTPException(
             status_code=404,
             detail={"error": "user_not_found", "message": "User tidak ditemukan."},
         )
 
-    # Hitung jumlah template yang benar-benar tersimpan di database
-    template_count = len(user.templates or [])
+    template_repo = TemplateRepository(db)
+    templates = template_repo.list_by_user(user_id, model_id=model_id)
+    template_count = len(templates)
     required_templates = 5
-    
+
     return VerifyReadyResponse(
         ready=(template_count >= required_templates),
         template_count=template_count,

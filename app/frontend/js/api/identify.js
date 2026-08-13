@@ -6,12 +6,16 @@ import { apiFetch } from "./client.js";
 
 /**
  * POST /identify
- * Send a palm image blob for identification.
+ * Send a palm image blob for identification with optional model_id.
  * @param {Blob} imageBlob
- * @returns {{ status: 'identified'|'unknown', user: {id,name}|null, score: number, latency_ms: number }}
+ * @param {string} [modelId]
+ * @returns {Promise<object>}
  */
-export const identify = (imageBlob) => {
+export const identify = (imageBlob, modelId = null) => {
   const form = new FormData();
   form.append("image", imageBlob, "frame.jpg");
+  if (modelId) {
+    form.append("model_id", modelId);
+  }
   return apiFetch("/identify", { method: "POST", body: form });
 };

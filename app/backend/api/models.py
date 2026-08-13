@@ -1,9 +1,8 @@
 """
-Model selection API endpoint.
+Model selection discovery API endpoints.
 
-GET  /models               - list available models
-GET  /models/active        - get active model info
-POST /models/active        - set active model (runtime switch)
+GET  /models             - list available models in registry
+GET  /models/{model_id}  - get metadata for specific model
 """
 from __future__ import annotations
 
@@ -14,84 +13,36 @@ router = APIRouter()
 
 @router.get("/models")
 async def list_models(request: Request):
-    """List semua model yang tersedia di registry."""
+    """List all available models in the registry."""
     registry = getattr(request.app.state, "registry", None)
+    default_id = getattr(request.app.state.settings, "default_model_id", "mobilefacenet-pretrained")
+
     if registry is None:
-        return {"models": [], "active_model_id": "mobilefacenet-pretrained"}
+        return {"models": [], "default_model_id": default_id}
 
     return {
         "models": registry.list_available(),
-        "active_model_id": getattr(request.app.state, "active_model_id", "mobilefacenet-pretrained"),
+        "default_model_id": default_id,
     }
 
 
-@router.get("/models/active")
-async def get_active_model(request: Request):
-    """Get info tentang model yang sedang aktif."""
-    active_id = getattr(request.app.state, "active_model_id", "mobilefacenet-pretrained")
+@router.get("/models/{model_id}")
+async def get_model_details(model_id: str, request: Request):
+    """Get metadata for a specific model by model_id."""
     registry = getattr(request.app.state, "registry", None)
-
-    if registry and registry.is_available(active_id):
-        runtime = registry.get(active_id)
-        return {
-            "model_id": active_id,
-            "name": runtime.name,
-            "version": runtime.version,
-            "training_mode": runtime.training_mode,
-            "threshold": runtime.threshold,
-            "metrics": runtime.metrics,
-        }
-    return {
-        "model_id": active_id,
-        "name": active_id,
-        "version": "unknown",
-        "training_mode": "unknown",
-        "threshold": 0.50,
-        "metrics": {},
-    }
-
-
-@router.post("/models/active")
-async def set_active_model(
-    request: Request,
-    body: dict,
-):
-    """Switch active model untuk identification/enrollment.
-
-    Body: {"model_id": "palmnet-lite-scratch"}
-
-    Note: Ini mengubah model runtime hanya untuk session ini.
-    Embeddings antar model TIDAK dicampur — jika model berganti,
-    enrollment ulang diperlukan untuk template yang kompatibel.
-    """
-    model_id = body.get("model_id")
-    if not model_id:
-        raise HTTPException(status_code=422, detail="model_id diperlukan")
-
-    registry = getattr(request.app.state, "registry", None)
-    if registry is None:
-        raise HTTPException(status_code=503, detail="ModelRegistry tidak tersedia")
-
-    if not registry.is_available(model_id):
-        available = [m["id"] for m in registry.list_available()]
+    if registry is None or not registry.is_available(model_id):
         raise HTTPException(
             status_code=404,
-            detail=f"Model '{model_id}' tidak tersedia. Available: {available}"
+            detail={"error": "model_not_found", "message": f"Model '{model_id}' tidak ditemukan di registry."}
         )
 
     runtime = registry.get(model_id)
-    request.app.state.recognizer = runtime
-    request.app.state.active_model_id = model_id
-
     return {
-        "ok": True,
-        "active_model_id": model_id,
+        "model_id": runtime.model_id,
         "name": runtime.name,
         "version": runtime.version,
         "training_mode": runtime.training_mode,
         "threshold": runtime.threshold,
-        "warning": (
-            "Perubahan model membutuhkan enrollment ulang jika template lama "
-            "dihasillkan dari model berbeda."
-        ),
+        "manifest": runtime.manifest,
+        "metrics": runtime.metrics,
     }

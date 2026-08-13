@@ -1,6 +1,5 @@
-from fastapi import APIRouter, Request, UploadFile, File, HTTPException
+from fastapi import APIRouter, Request, UploadFile, File, Form, HTTPException, Depends
 from sqlalchemy.orm import Session
-from fastapi import Depends
 from db.database import get_db
 from schemas.identification import IdentifyResponse
 from services.image_service import upload_to_pil
@@ -13,20 +12,15 @@ router = APIRouter()
 async def identify_palm(
     request: Request,
     image: UploadFile = File(...),
+    model_id: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
-    """
-    Identify user from palm image.
-
-    Returns identified user with score and latency, or unknown status.
-    HTTP 400 is raised for quality/detection errors with a structured error body.
-    """
+    """Identify user from palm image using per-request model_id selection."""
     pil_image = await upload_to_pil(image, request.app.state.settings.max_upload_mb)
 
-    service = IdentificationService(request.app.state, db)
+    service = IdentificationService(request.app.state, db, model_id=model_id)
     result, latency_ms = service.identify_palm(pil_image)
 
-    # ML / quality failures surface as structured error responses (HTTP 200) to prevent browser console spam
     if result["status"] == "error":
         return IdentifyResponse(
             status="error",
@@ -35,7 +29,9 @@ async def identify_palm(
             bbox=result.get("bbox"),
             landmarks=result.get("landmarks"),
             score=0.0,
-            latency_ms=latency_ms
+            latency_ms=latency_ms,
+            model_id=result.get("model_id"),
+            model_version=result.get("model_version"),
         )
 
     user = None
@@ -55,6 +51,8 @@ async def identify_palm(
         bbox=result.get("bbox"),
         landmarks=result.get("landmarks"),
         quality_score=result.get("quality_score"),
+        model_id=result.get("model_id"),
+        model_version=result.get("model_version"),
     )
 
 
@@ -68,7 +66,7 @@ def _error_message(code: str) -> str:
         "fingers_not_open":     "Buka jari sedikit lebih lebar.",
         "image_too_blurry":     "Tahan tangan diam sebentar.",
         "roi_extraction_failed":"Posisikan telapak di tengah frame.",
-        "no_templates_enrolled":"Belum ada template terdaftar. Lakukan enrollment terlebih dahulu.",
-        "not_enough_templates": "Template biometrik belum lengkap (butuh 5). Selesaikan enrollment terlebih dahulu.",
+        "no_templates_enrolled":"Belum ada template terdaftar untuk model ini. Lakukan enrollment terlebih dahulu.",
+        "not_enough_templates": "Template biometrik belum lengkap. Selesaikan enrollment terlebih dahulu.",
     }
-    return messages.get(code, "Gagal memproses telapak. Coba lagi.")  
+    return messages.get(code, "Gagal memproses telapak. Coba lagi.")

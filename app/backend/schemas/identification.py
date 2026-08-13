@@ -5,7 +5,7 @@ from schemas.users import UserResponse
 
 
 class IdentifyResponse(BaseModel):
-    status: str                        # "identified" | "unknown"
+    status: str                        # "identified" | "unknown" | "error"
     user: Optional[UserResponse] = None
     score: float
     latency_ms: int
@@ -14,3 +14,5 @@ class IdentifyResponse(BaseModel):
     bbox: Optional[Dict[str, float]] = None
     landmarks: Optional[List[Dict[str, float]]] = None
     quality_score: Optional[float] = None
+    model_id: Optional[str] = None
+    model_version: Optional[str] = None

@@ -58,9 +58,18 @@ class TemplateRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create(self, user_id: int, embedding: np.ndarray, quality_score: float) -> Template:
+    def create(
+        self,
+        user_id: int,
+        embedding: np.ndarray,
+        quality_score: float,
+        model_id: str = "mobilefacenet-pretrained",
+        model_version: str = "1.0.0",
+    ) -> Template:
         template = Template(
             user_id=user_id,
+            model_id=model_id,
+            model_version=model_version,
             embedding=embedding_to_blob(embedding),
             quality_score=quality_score,
         )
@@ -69,24 +78,43 @@ class TemplateRepository:
         self.db.refresh(template)
         return template
 
-    def list_by_user(self, user_id: int) -> list[Template]:
-        return self.db.query(Template).filter(Template.user_id == user_id).all()
+    def list_by_user(
+        self,
+        user_id: int,
+        model_id: str | None = None,
+        model_version: str | None = None,
+    ) -> list[Template]:
+        q = self.db.query(Template).filter(Template.user_id == user_id)
+        if model_id is not None:
+            q = q.filter(Template.model_id == model_id)
+        if model_version is not None:
+            q = q.filter(Template.model_version == model_version)
+        return q.all()
 
-    def list_all_grouped(self) -> list[dict]:
+    def list_all_grouped(
+        self,
+        model_id: str | None = None,
+        model_version: str | None = None,
+    ) -> list[dict]:
         users = (
             self.db.query(User)
             .options(joinedload(User.templates))
             .all()
         )
-        return [
-            {
-                "user_id": user.id,
-                "user_name": user.name,
-                "embeddings": [blob_to_embedding(t.embedding) for t in user.templates],
-            }
-            for user in users
-            if len(user.templates) > 0
-        ]
+        result = []
+        for user in users:
+            matching_templates = [
+                t for t in user.templates
+                if (model_id is None or t.model_id == model_id)
+                and (model_version is None or t.model_version == model_version)
+            ]
+            if len(matching_templates) > 0:
+                result.append({
+                    "user_id": user.id,
+                    "user_name": user.name,
+                    "embeddings": [blob_to_embedding(t.embedding) for t in matching_templates],
+                })
+        return result
 
 
 class DemoLogRepository:

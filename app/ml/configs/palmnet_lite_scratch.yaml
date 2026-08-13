@@ -1,7 +1,6 @@
 # PalmNet-Lite Scratch — Canonical Training Configuration
 # Sesuai docs/03-training-and-artifacts.md §53
 # Source of truth untuk experiment pertama (baseline).
-# Ubah nilai jika eksperimen memerlukan tuning; catat alasan di trained log.
 
 run:
   seed: 42
@@ -27,14 +26,11 @@ model:
 dataset:
   name: Tongji Palmprint
   split_protocol: "400-train-cross-session-val-200-unseen-test"
-  train_csv: app/ml/data/splits/train.csv
-  val_csv: app/ml/data/splits/val.csv
-  test_csv: app/ml/data/splits/test.csv
-  # Palm 1-400: train (session1) + val (session2)
-  # Palm 401-600: test enrollment (session1) + query (session2)
+  train_csv: data/splits/train.csv
+  val_csv: data/splits/val.csv
+  test_csv: data/splits/test.csv
 
 augmentation:
-  # Training only — NO augmentation for val/test
   rotate_deg: 15
   crop_scale: [0.90, 1.00]
   crop_ratio: [0.85, 1.15]
@@ -42,14 +38,12 @@ augmentation:
   contrast: 0.25
   saturation: 0.15
   hue: 0.05
-  gaussian_blur_prob: 0.2
-  gaussian_noise_prob: 0.1
-  # NO horizontal flip — kiri/kanan dianggap class berbeda
+  blur_prob: 0.2
+  noise_prob: 0.1
 
 phase1:
   epochs: 40
   batch_size: 64
-  # Fallback: 32 jika CUDA OOM
   optimizer: adamw
   lr: 0.001
   weight_decay: 0.0001
@@ -59,7 +53,8 @@ phase1:
   min_lr: 0.000001
   grad_clip_norm: 5.0
   best_metric: val_accuracy
-  # Tie-break: lower val_loss
+  gate_min_acc_pass: 0.70
+  gate_min_acc_review: 0.50
 
 phase2:
   epochs: 50
@@ -74,7 +69,6 @@ phase2:
   min_lr: 0.000001
   grad_clip_norm: 5.0
   best_metric: cosine_gap
-  # Tie-break: lower val_eer
 
 evaluation:
   metric: cosine_similarity
@@ -83,7 +77,7 @@ evaluation:
   far_targets: [0.001, 0.0001]
 
 paths:
-  checkpoint_dir: app/ml/checkpoints/palmnet-lite-scratch
-  trained_logs_dir: app/ml/artifacts/trained_logs/palmnet-lite-scratch
-  artifact_dir: app/backend/ml/models/palmnet-lite-scratch/1.0.0
+  checkpoint_dir: checkpoints/palmnet-lite-scratch
+  trained_logs_dir: artifacts/trained_logs/palmnet-lite-scratch
+  artifact_dir: ../backend/ml/models/palmnet-lite-scratch/1.0.0
   artifact_version: "1.0.0"

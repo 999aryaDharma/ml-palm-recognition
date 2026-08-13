@@ -1,20 +1,8 @@
 """
-TorchScript Exporter untuk PalmNet-Lite Artifact.
+TorchScript Exporter for PalmNet-Lite Artifact.
 
-Export flow:
-    1. Load backbone dari best_phase2.pth (backbone_state_dict only)
-    2. Buat PalmNetLiteInferenceWrapper (backbone + L2 normalize)
-    3. model.eval()
-    4. torch.jit.script()
-    5. Verifikasi output: shape, finite, L2 norm ~1
-    6. Simpan model.pt, manifest.json, threshold.json, metrics.json
-
-Output artifact:
-    backend/ml/models/palmnet-lite-scratch/1.0.0/
-        model.pt
-        manifest.json
-        threshold.json
-        metrics.json
+Exports backbone to TorchScript model.pt, creates manifest.json, threshold.json, metrics.json.
+Enforces fail-closed rules when exporting for backend deployment.
 """
 from __future__ import annotations
 
@@ -27,6 +15,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from palm_recognition.paths import resolve_ml_path
+from palm_recognition.models.inference import PalmNetLiteInferenceWrapper
+
 
 def export_palmnet_lite(
     backbone_class,
@@ -36,26 +27,40 @@ def export_palmnet_lite(
     threshold_data: Optional[dict] = None,
     metrics_data: Optional[dict] = None,
     param_count: Optional[int] = None,
+    deploy_backend: bool = False,
 ) -> Path:
-    """Export PalmNet-Lite backbone ke TorchScript artifact.
+    """Export PalmNet-Lite backbone to TorchScript artifact.
 
     Args:
-        backbone_class:   PalmNetLite class
-        checkpoint_path:  path ke checkpoint_phase2_best.pth
-        output_dir:       target artifact directory
-        version:          artifact version string
-        threshold_data:   dict untuk threshold.json (dari calibration)
-        metrics_data:     dict untuk metrics.json (dari evaluation)
-        param_count:      trainable parameter count (jika sudah diketahui)
+        backbone_class: PalmNetLite factory function
+        checkpoint_path: path to checkpoint_phase2_best.pth
+        output_dir: target output directory
+        version: artifact version string
+        threshold_data: dictionary from validation threshold calibration
+        metrics_data: dictionary from holdout evaluation
+        param_count: trainable parameter count
+        deploy_backend: if True, strict fail-closed checks apply (requires validation threshold)
 
     Returns:
-        Path ke model.pt
+        Path to generated model.pt
     """
-    checkpoint_path = Path(checkpoint_path)
-    output_dir = Path(output_dir)
+    checkpoint_path = resolve_ml_path(checkpoint_path)
+    output_dir = resolve_ml_path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # ── Load backbone ─────────────────────────────────────────────────────────
+    if not checkpoint_path.exists():
+        raise FileNotFoundError(f"Export FAIL: Checkpoint not found at {checkpoint_path}")
+
+    # Strict Fail-Closed Check for Backend Deployment
+    if deploy_backend:
+        if not threshold_data:
+            raise ValueError("Export FAIL (deploy_backend): threshold_data is required for backend deployment. Run validation calibration first.")
+        if threshold_data.get("calibration_split") != "validation":
+            raise ValueError(f"Export FAIL (deploy_backend): threshold must be calibrated on 'validation' split, got '{threshold_data.get('calibration_split')}'")
+        if not metrics_data:
+            raise ValueError("Export FAIL (deploy_backend): metrics_data is required for backend deployment.")
+
+    # 1. Load backbone state_dict
     ckpt = torch.load(checkpoint_path, map_location="cpu")
     state_key = "backbone_state_dict" if "backbone_state_dict" in ckpt else "model_state_dict"
     state_dict = ckpt.get(state_key, ckpt)
@@ -64,20 +69,11 @@ def export_palmnet_lite(
     backbone.load_state_dict(state_dict, strict=True)
     backbone.eval()
 
-    # ── Inference wrapper ─────────────────────────────────────────────────────
-    class _InferenceWrapper(nn.Module):
-        def __init__(self, backbone: nn.Module):
-            super().__init__()
-            self.backbone = backbone
-
-        def forward(self, x: torch.Tensor) -> torch.Tensor:
-            emb = self.backbone(x)
-            return F.normalize(emb, p=2, dim=1)
-
-    wrapper = _InferenceWrapper(backbone)
+    # 2. Canonical inference wrapper
+    wrapper = PalmNetLiteInferenceWrapper(backbone)
     wrapper.eval()
 
-    # ── TorchScript export ────────────────────────────────────────────────────
+    # 3. TorchScript export
     dummy = torch.randn(1, 3, 112, 112)
     with torch.no_grad():
         eager_out = wrapper(dummy)
@@ -85,33 +81,27 @@ def export_palmnet_lite(
     try:
         scripted = torch.jit.script(wrapper)
     except Exception as e:
-        print(f"[Export] torch.jit.script gagal: {e}, fallback ke trace")
+        print(f"[Export] torch.jit.script failed: {e}, falling back to torch.jit.trace")
         scripted = torch.jit.trace(wrapper, dummy)
 
-    # ── Verifikasi output ─────────────────────────────────────────────────────
+    # 4. Verify output
     scripted.eval()
     with torch.no_grad():
         scripted_out = scripted(dummy)
 
-    assert scripted_out.shape == (1, 128), f"Shape salah: {scripted_out.shape}"
-    assert torch.isfinite(scripted_out).all(), "Output mengandung NaN/Inf"
-
-    l2_norm = scripted_out.norm(p=2, dim=1)
-    assert torch.allclose(l2_norm, torch.ones(1), atol=1e-3), \
-        f"L2 norm bukan ~1: {l2_norm.item()}"
+    assert scripted_out.shape == (1, 128), f"Output shape mismatch: {scripted_out.shape}"
+    assert torch.isfinite(scripted_out).all(), "Output contains NaN or Inf"
+    l2_norm = scripted_out.norm(p=2, dim=1).item()
+    assert abs(l2_norm - 1.0) < 1e-3, f"Output L2 norm is not ~1: {l2_norm:.6f}"
 
     max_diff = (eager_out - scripted_out).abs().max().item()
-    print(f"[Export] eager vs scripted max diff: {max_diff:.6f}")
-    if max_diff > 1e-3:
-        print(f"  WARNING: max diff {max_diff:.6f} > 1e-3")
 
-    # ── Simpan model.pt ───────────────────────────────────────────────────────
+    # 5. Write model.pt
     model_pt_path = output_dir / "model.pt"
     scripted.save(str(model_pt_path))
-    model_size_mb = model_pt_path.stat().st_size / 1024 / 1024
-    print(f"[Export] Saved: {model_pt_path} ({model_size_mb:.2f} MB)")
+    model_size_mb = model_pt_path.stat().st_size / (1024 * 1024)
 
-    # ── manifest.json ─────────────────────────────────────────────────────────
+    # 6. Write manifest.json
     manifest = {
         "model_id": "palmnet-lite-scratch",
         "name": "PalmNet-Lite (Scratch)",
@@ -119,7 +109,7 @@ def export_palmnet_lite(
         "architecture": "PalmNetLite",
         "architecture_version": "v1",
         "training_mode": "scratch",
-        "source": "project_training",
+        "deployable": deploy_backend,
         "input_shape": [3, 112, 112],
         "output_dim": 128,
         "normalization": {"mean": [0.5, 0.5, 0.5], "std": [0.5, 0.5, 0.5]},
@@ -127,17 +117,16 @@ def export_palmnet_lite(
         "parameter_count": param_count,
         "model_size_mb": round(model_size_mb, 3),
         "exported_at": datetime.now().isoformat(),
-        "checkpoint_source": str(checkpoint_path),
         "export_verification": {
             "output_shape": list(scripted_out.shape),
             "is_finite": True,
-            "l2_norm": round(float(l2_norm.item()), 6),
+            "l2_norm": round(l2_norm, 6),
             "eager_vs_scripted_max_diff": round(max_diff, 8),
         },
     }
     _write_json(output_dir / "manifest.json", manifest)
 
-    # ── threshold.json ────────────────────────────────────────────────────────
+    # 7. Write threshold.json
     if threshold_data:
         _write_json(output_dir / "threshold.json", threshold_data)
     else:
@@ -148,33 +137,27 @@ def export_palmnet_lite(
             "threshold": 0.50,
             "calibration_split": "not_calibrated",
             "selection": "default",
-            "note": "Default threshold — run calibration untuk threshold aktual",
+            "note": "Dev artifact — uncalibrated threshold.",
         }
         _write_json(output_dir / "threshold.json", default_threshold)
 
-    # ── metrics.json ──────────────────────────────────────────────────────────
+    # 8. Write metrics.json
     if metrics_data:
-        clean = {k: v for k, v in metrics_data.items() if not k.startswith("_")}
-        _write_json(output_dir / "metrics.json", clean)
+        clean_metrics = {k: v for k, v in metrics_data.items() if not k.startswith("_")}
+        _write_json(output_dir / "metrics.json", clean_metrics)
 
-    print(f"[Export] Artifact selesai di: {output_dir}")
+    print(f"[Export] Artifact successfully exported to: {output_dir}")
     return model_pt_path
 
 
 def verify_artifact(artifact_dir: str | Path) -> dict:
-    """Verifikasi artifact yang sudah diexport.
-
-    Load model.pt dan jalankan forward pass.
-
-    Returns:
-        dict hasil verifikasi
-    """
-    artifact_dir = Path(artifact_dir)
+    """Verify an exported artifact directory."""
+    artifact_dir = resolve_ml_path(artifact_dir)
     model_pt = artifact_dir / "model.pt"
     manifest_path = artifact_dir / "manifest.json"
 
     if not model_pt.exists():
-        return {"ok": False, "error": f"model.pt tidak ditemukan di {artifact_dir}"}
+        return {"ok": False, "error": f"model.pt not found in {artifact_dir}"}
 
     try:
         model = torch.jit.load(str(model_pt), map_location="cpu")
@@ -187,7 +170,7 @@ def verify_artifact(artifact_dir: str | Path) -> dict:
         assert out.shape == (1, 128)
         assert torch.isfinite(out).all()
         l2 = out.norm(p=2, dim=1).item()
-        assert abs(l2 - 1.0) < 1e-2, f"L2 norm {l2:.4f}"
+        assert abs(l2 - 1.0) < 1e-2
 
         manifest = {}
         if manifest_path.exists():

@@ -4,19 +4,9 @@ Phase 2 — ArcFace Metric Learning untuk PalmNet-Lite.
 Input: backbone dari checkpoint_phase1_best.pth (own training hasil)
 Goal: membentuk embedding geometry untuk biometric matching.
 
-Pipeline:
-    PalmNetLite (dari Phase 1 checkpoint)
-    -> raw 128-D embedding
-    -> ArcFace head (margin warmup 0→0.30 selama 8 epoch)
-    -> loss.backward() seluruh backbone + ArcFace
-
-Validation monitoring:
-    - mean genuine cosine similarity
-    - mean impostor cosine similarity
-    - cosine_gap = mean_genuine - mean_impostor
-
-Best checkpoint dipilih berdasarkan: cosine_gap tertinggi
-Tie-break: val_eer terendah (jika EER tersedia)
+Best checkpoint selection:
+Primary: highest cosine_gap
+Tie-break: lower train_loss if cosine_gap is equal
 """
 from __future__ import annotations
 
@@ -29,6 +19,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
+from palm_recognition.paths import resolve_ml_path
+
 
 def compute_val_embedding_metrics(
     backbone: nn.Module,
@@ -36,11 +28,6 @@ def compute_val_embedding_metrics(
     device: torch.device,
     max_pairs: int = 50000,
 ) -> dict:
-    """Hitung cosine gap dari validation embeddings.
-
-    Returns dict dengan:
-        mean_positive_cosine, mean_negative_cosine, cosine_gap
-    """
     backbone.eval()
     all_embs = []
     all_labels = []
@@ -56,25 +43,22 @@ def compute_val_embedding_metrics(
     embs_np = torch.cat(all_embs, dim=0).numpy()
     labels_np = np.array(all_labels)
 
-    # Group by label
     label_to_idx: dict = defaultdict(list)
     for i, lbl in enumerate(labels_np):
         label_to_idx[int(lbl)].append(i)
 
     genuine_scores = []
     impostor_scores = []
-    rng = np.random.default_rng(42)  # deterministic sampling
+    rng = np.random.default_rng(42)
 
     for lbl, idxs in label_to_idx.items():
         idxs = np.array(idxs)
-        # Genuine pairs (within class)
         if len(idxs) >= 2:
             for i in range(len(idxs)):
                 for j in range(i + 1, len(idxs)):
                     s = float(np.dot(embs_np[idxs[i]], embs_np[idxs[j]]))
                     genuine_scores.append(s)
 
-    # Impostor pairs (cross class, sampled)
     num_classes = len(label_to_idx)
     class_list = list(label_to_idx.keys())
     n_imp = min(max_pairs, len(genuine_scores) * 3)
@@ -111,32 +95,15 @@ def run_phase2(
     val_loader: DataLoader,
     num_classes: int,
     config: dict,
-    checkpoint_dir: str,
+    checkpoint_dir: str | Path,
     run_logger,
     device: torch.device,
     run_id: str,
 ) -> dict:
-    """Jalankan Phase 2 ArcFace Metric Learning.
-
-    backbone harus sudah diload dari checkpoint Phase 1.
-    ArcFace head dibuat baru dan diinisialisasi Xavier.
-
-    Args:
-        backbone:        PalmNetLite dari Phase 1 checkpoint
-        train_loader:    training DataLoader
-        val_loader:      validation DataLoader (untuk cosine gap)
-        num_classes:     jumlah kelas training
-        config:          phase2 config dict
-        checkpoint_dir:  path checkpoint
-        run_logger:      RunLogger instance
-        device:          torch device
-        run_id:          run identifier
-
-    Returns:
-        dict summary Phase 2
-    """
     from palm_recognition.losses.arcface import ArcFaceLoss, LinearMarginWarmup
     from palm_recognition.training.checkpointing import save_phase2_checkpoint
+
+    checkpoint_dir = resolve_ml_path(checkpoint_dir)
 
     epochs = config.get("epochs", 50)
     lr = config.get("lr", 1e-4)
@@ -147,18 +114,16 @@ def run_phase2(
     min_lr = config.get("min_lr", 1e-6)
     grad_clip = config.get("grad_clip_norm", 5.0)
 
-    # ── ArcFace head ──────────────────────────────────────────────────────────
     backbone = backbone.to(device)
     arcface = ArcFaceLoss(
         in_features=128,
         num_classes=num_classes,
-        margin=0.0,  # warmup starts from 0
+        margin=0.0,
         scale=arcface_scale,
     ).to(device)
     margin_scheduler = LinearMarginWarmup(arcface, target_margin=arcface_margin,
                                           warmup_epochs=margin_warmup_epochs)
 
-    # ── Optimizer — backbone + ArcFace ───────────────────────────────────────
     optimizer = torch.optim.AdamW(
         list(backbone.parameters()) + list(arcface.parameters()),
         lr=lr,
@@ -169,6 +134,7 @@ def run_phase2(
     )
 
     best_cosine_gap = -float("inf")
+    best_train_loss = float("inf")
     best_epoch = -1
     best_metrics: dict = {}
     history = []
@@ -184,7 +150,6 @@ def run_phase2(
         current_lr = optimizer.param_groups[0]["lr"]
         current_margin = margin_scheduler.step(epoch)
 
-        # ── Train ─────────────────────────────────────────────────────────────
         backbone.train()
         arcface.train()
         train_loss_acc = 0.0
@@ -216,7 +181,6 @@ def run_phase2(
         train_loss = train_loss_acc / max(train_total, 1)
         scheduler.step()
 
-        # ── Validation: cosine gap ─────────────────────────────────────────────
         emb_metrics = compute_val_embedding_metrics(backbone, val_loader, device)
         cosine_gap = emb_metrics.get("cosine_gap", 0.0)
 
@@ -231,10 +195,16 @@ def run_phase2(
         history.append({"epoch": epoch + 1, **metrics})
         run_logger.log_epoch(phase=2, epoch=epoch + 1, metrics=metrics)
 
-        # ── Best checkpoint selection (primary: cosine_gap) ───────────────────
-        is_best = cosine_gap > best_cosine_gap
+        # Primary selection: cosine_gap. Tie-break: lower train_loss
+        is_best = False
+        if cosine_gap > best_cosine_gap + 1e-6:
+            is_best = True
+        elif abs(cosine_gap - best_cosine_gap) <= 1e-6 and train_loss < best_train_loss:
+            is_best = True
+
         if is_best:
             best_cosine_gap = cosine_gap
+            best_train_loss = train_loss
             best_epoch = epoch + 1
             best_metrics = emb_metrics.copy()
 

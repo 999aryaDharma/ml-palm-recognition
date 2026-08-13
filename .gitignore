@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Database / SQLite WAL
+*.db-shm
+*.db-wal
+
+# PyTorch / Models / Checkpoints
+*.pth
+*.pt
+!app/backend/ml/models/mobilefacenet-pretrained/1.0.0/model.pt
+!app/backend/ml/models/hand_landmarker.task
+
+# Artifacts & logs
+app/ml/artifacts/training_logs/
+app/ml/artifacts/trained_logs/
+app/ml/checkpoints/
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

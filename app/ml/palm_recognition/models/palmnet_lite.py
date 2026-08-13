@@ -232,18 +232,30 @@ class PalmNetLiteInference(nn.Module):
 def build_palmnet_lite(cfg: dict | None = None) -> PalmNetLite:
     """Build PalmNetLite dari config dict.
 
-    Default menggunakan spec v1 dari docs/02-model-architecture.md.
+    Mengekstrak parameter konstruksi yang valid secara eksplisit dari dict,
+    mengabaikan metadata yang tidak relevan untuk konstruktor (seperti id, architecture).
     """
-    defaults = {
-        "input_channels": 3,
-        "stem_channels": 32,
-        "stage_channels": (32, 64, 96, 128),
-        "stage_repeats": (2, 3, 4, 2),
-        "projection_channels": 256,
-        "embedding_dim": 128,
-        "expansion": 2,
-        "prelu_init": 0.25,
-    }
-    if cfg:
-        defaults.update(cfg)
-    return PalmNetLite(**defaults)
+    cfg = cfg or {}
+
+    # Support expansion_ratio (YAML key) atau expansion (constructor kwarg)
+    expansion = cfg.get("expansion_ratio", cfg.get("expansion", 2))
+
+    stage_channels = cfg.get("stage_channels", [32, 64, 96, 128])
+    if isinstance(stage_channels, list):
+        stage_channels = tuple(stage_channels)
+
+    stage_repeats = cfg.get("stage_repeats", [2, 3, 4, 2])
+    if isinstance(stage_repeats, list):
+        stage_repeats = tuple(stage_repeats)
+
+    return PalmNetLite(
+        input_channels=cfg.get("input_channels", 3),
+        stem_channels=cfg.get("stem_channels", 32),
+        stage_channels=stage_channels,
+        stage_repeats=stage_repeats,
+        projection_channels=cfg.get("projection_channels", 256),
+        embedding_dim=cfg.get("embedding_dim", 128),
+        expansion=expansion,
+        prelu_init=cfg.get("prelu_init", 0.25),
+    )
+

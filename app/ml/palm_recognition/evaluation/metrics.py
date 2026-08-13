@@ -26,8 +26,18 @@ def print_biometric_metrics(results: dict) -> None:
     print(f"Impostor pairs:       {results.get('num_impostor_pairs', 0):,}")
     print()
     print(f"Rank-1 accuracy:      {results.get('rank1_accuracy', 0)*100:.2f}%")
-    print(f"EER:                  {results.get('eer', 0)*100:.3f}%")
-    print(f"EER threshold:        {results.get('eer_threshold', 0):.4f}")
+    if "calibrated_validation_threshold" in results:
+        print(f"Calibrated Threshold: {results['calibrated_validation_threshold']:.4f}")
+    if "far_at_calibrated_threshold" in results:
+        print(f"FAR @ Calibrated Th:  {results['far_at_calibrated_threshold']*100:.3f}%")
+        print(f"FRR @ Calibrated Th:  {results['frr_at_calibrated_threshold']*100:.3f}%")
+        print(f"TAR @ Calibrated Th:  {results['tar_at_calibrated_threshold']*100:.2f}%")
+    print()
+    if "diagnostic_test_eer" in results:
+        print(f"Diagnostic Test EER:  {results['diagnostic_test_eer']*100:.3f}%")
+        print(f"Diagnostic Test Th:   {results.get('diagnostic_test_eer_threshold', 0):.4f}")
+    elif "eer" in results:
+        print(f"EER:                  {results['eer']*100:.3f}%")
     print(f"ROC AUC:              {results.get('roc_auc', 0):.4f}")
     print()
     for key in ["tar_at_far_0.001", "tar_at_far_0.0001"]:
@@ -39,6 +49,7 @@ def print_biometric_metrics(results: dict) -> None:
     print(f"Mean impostor sim:    {results.get('mean_impostor_score', 0):.4f} ± {results.get('std_impostor_score', 0):.4f}")
     print(f"Cosine gap:           {results.get('cosine_gap', 0):.4f}")
     print("=" * 60)
+
 
 
 def save_training_plots(

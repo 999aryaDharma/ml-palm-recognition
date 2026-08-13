@@ -1,17 +1,13 @@
 // js/components/model-selector.js
-// Reusable model selector component untuk halaman yang butuh model switching.
-//
-// Usage:
-//   import { ModelSelector } from './components/model-selector.js';
-//   const selector = new ModelSelector('#model-selector-container');
-//   await selector.init();
-//   selector.onChange(modelId => { /* re-identify atau re-enroll */ });
+// Reusable client-side model selector component.
+// Discovers models via GET /models and stores selected modelId locally.
+// Does NOT mutate global server active model.
 
-import { listModels, setActiveModel } from '../api/models.js';
+import { listModels } from '../api/models.js';
 
 export class ModelSelector {
   /**
-   * @param {string|HTMLElement} container - CSS selector atau element
+   * @param {string|HTMLElement} container
    */
   constructor(container) {
     this._el = typeof container === 'string'
@@ -19,30 +15,28 @@ export class ModelSelector {
       : container;
     this._onChangeCb = null;
     this._models = [];
-    this._activeId = null;
+    this._selectedId = null;
   }
 
-  /** Fetch model list dan render selector. */
   async init() {
     if (!this._el) return;
     try {
       const data = await listModels();
       this._models = data.models || [];
-      this._activeId = data.active_model_id || null;
+      // Default to first available or default_model_id
+      this._selectedId = data.default_model_id || (this._models[0] ? this._models[0].id : null);
       this._render();
     } catch (e) {
       this._renderError();
     }
   }
 
-  /** Register callback yang dipanggil saat model berubah. */
   onChange(cb) {
     this._onChangeCb = cb;
   }
 
-  /** Get current active model_id. */
-  get activeModelId() {
-    return this._activeId;
+  get selectedModelId() {
+    return this._selectedId;
   }
 
   _render() {
@@ -62,13 +56,13 @@ export class ModelSelector {
         <div class="model-selector-select-wrap">
           <select id="model-selector-select" class="model-selector-select">
             ${this._models.map(m => `
-              <option value="${m.id}" ${m.id === this._activeId ? 'selected' : ''}>
+              <option value="${m.id}" ${m.id === this._selectedId ? 'selected' : ''}>
                 ${m.name}
               </option>
             `).join('')}
           </select>
           <span class="model-selector-badge" id="model-selector-badge">
-            ${this._getBadgeHtml(this._activeId)}
+            ${this._getBadgeHtml(this._selectedId)}
           </span>
         </div>
       </div>
@@ -82,26 +76,15 @@ export class ModelSelector {
     this._el.innerHTML = `<span class="model-selector-error">Model registry tidak tersedia</span>`;
   }
 
-  async _handleChange(modelId) {
-    if (modelId === this._activeId) return;
+  _handleChange(modelId) {
+    if (modelId === this._selectedId) return;
 
-    const select = this._el.querySelector('#model-selector-select');
+    this._selectedId = modelId;
     const badge = this._el.querySelector('#model-selector-badge');
-    if (select) select.disabled = true;
-    if (badge) badge.innerHTML = `<span class="model-badge-loading">Switching…</span>`;
+    if (badge) badge.innerHTML = this._getBadgeHtml(modelId);
 
-    try {
-      await setActiveModel(modelId);
-      this._activeId = modelId;
-      if (badge) badge.innerHTML = this._getBadgeHtml(modelId);
-      if (this._onChangeCb) this._onChangeCb(modelId);
-    } catch (e) {
-      // Revert selection
-      if (select) select.value = this._activeId;
-      if (badge) badge.innerHTML = this._getBadgeHtml(this._activeId);
-      console.error('[ModelSelector] Failed to switch model:', e);
-    } finally {
-      if (select) select.disabled = false;
+    if (this._onChangeCb) {
+      this._onChangeCb(modelId);
     }
   }
 

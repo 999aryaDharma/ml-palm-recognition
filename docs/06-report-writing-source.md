@@ -189,11 +189,12 @@ Input 3x112x112
 ### Nilai Aktual Setelah Implementasi
 
 ```text
-Total parameters : TBD
-Trainable params : TBD
-FP32 model size  : TBD
-TorchScript size : TBD
+Total parameters : 393,472
+Trainable params : 393,472
+FP32 model size  : ~1.5 MB
+TorchScript size : TBD (setelah full training & export)
 ```
+
 
 ---
 

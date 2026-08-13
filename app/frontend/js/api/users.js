@@ -26,19 +26,25 @@ export const deleteUser = (id) =>
  * Upload a single palm image as a template for enrollment.
  * @param {number} userId
  * @param {Blob} imageBlob
+ * @param {string} [modelId]
  */
-export const addTemplate = (userId, imageBlob) => {
+export const addTemplate = (userId, imageBlob, modelId = null) => {
   const form = new FormData();
   form.append("image", imageBlob, "frame.jpg");
+  if (modelId) {
+    form.append("model_id", modelId);
+  }
   return apiFetch(`/users/${userId}/templates`, { method: "POST", body: form });
 };
 
 /** GET /users/:id/templates */
 export const getTemplates = (userId) => apiFetch(`/users/${userId}/templates`);
 
-
 /** GET /users/:id/verify-ready */
-export const verifyUserReady = (userId) => apiFetch(`/users/${userId}/verify-ready`);
+export const verifyUserReady = (userId, modelId = null) => {
+  const query = modelId ? `?model_id=${encodeURIComponent(modelId)}` : "";
+  return apiFetch(`/users/${userId}/verify-ready${query}`);
+};
 
 /** POST /users/:id/profile */
 export const addProfile = (userId, payload) =>
