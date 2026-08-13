@@ -58,9 +58,6 @@ let steps;
 
 async function init() {
   mountNavbar();
-
-  // Enrollment always targets every active model, so a per-model selector would
-  // be misleading on this page. Identification pages keep their selector.
   const selectorContainer = document.getElementById("navbar-model-selector");
   if (selectorContainer) selectorContainer.innerHTML = "";
 
@@ -111,7 +108,6 @@ async function init() {
     event.preventDefault();
     restartFromName();
   });
-
   window.addEventListener("beforeunload", cleanupOnExit);
 }
 
@@ -136,17 +132,14 @@ async function goToCaptureStep() {
     toast.warning("Nama minimal 2 karakter.");
     return;
   }
-
   const { checkHealth } = await import("../api/client.js");
   const { online } = await checkHealth();
   if (!online) {
     toast.error("Server backend offline. Jalankan FastAPI terlebih dahulu.");
     return;
   }
-
   pendingName = name;
   currentUserName = name;
-
   await withLoading(btnToCapture, "Memproses…", async () => {
     await showStep("capture");
     resetCaptureUI();
@@ -159,20 +152,14 @@ async function submitProfile() {
   const kelas = document.getElementById("input-kelas")?.value.trim();
   const balance = parseFloat(document.getElementById("input-balance")?.value || "0");
   const button = document.getElementById("btn-submit-profile");
-
   if (!nik || !kelas) {
     toast.warning("Lengkapi NIK dan Kelas terlebih dahulu.");
     return;
   }
-
   await withLoading(button, "Menyimpan…", async () => {
     try {
       const { addProfile } = await import("../api/users.js");
-      await addProfile(currentUserId, {
-        nik,
-        kelas_jabatan: kelas,
-        initial_balance: balance,
-      });
+      await addProfile(currentUserId, { nik, kelas_jabatan: kelas, initial_balance: balance });
       await showStep("success");
       toast.success(`Enrollment berhasil untuk ${currentUserName}!`, "Selamat!");
     } catch (error) {
@@ -185,10 +172,7 @@ async function initWebcam() {
   setHint("🎥 Menyalakan kamera...");
   clearQualityHint();
   try {
-    webcam = new WebcamCapture(videoEl, {
-      onCapture: handleCapture,
-      captureInterval: 1200,
-    });
+    webcam = new WebcamCapture(videoEl, { onCapture: handleCapture, captureInterval: 1200 });
     await webcam.start();
     setHint(POSE_GUIDE[findFirstEmptySlot()]?.hint || POSE_GUIDE[0].hint);
     scanline?.classList.remove("hidden");
@@ -215,23 +199,17 @@ async function handleCapture(blob) {
   if (isCapturing || sampleCount >= MAX_SAMPLES) return;
   isCapturing = true;
   const index = findFirstEmptySlot();
-
-  if (scannerLoadingLabel) {
-    scannerLoadingLabel.textContent = `Memeriksa sampel ${index + 1}/5 untuk semua model...`;
-  }
+  if (scannerLoadingLabel) scannerLoadingLabel.textContent = `Memeriksa sampel ${index + 1}/5 untuk semua model...`;
   scannerLoading?.classList.remove("hidden");
   setSlotActive(index);
-
   try {
     await validateFrameForAllModels(blob);
-
     capturedBlobs[index] = blob;
     sampleCount = capturedBlobs.filter(Boolean).length;
     renderSampleThumbnail(blob, index);
     clearQualityHint();
     clearSlotActive(index);
     updateCaptureProgress();
-
     if (sampleCount >= MAX_SAMPLES) {
       setHint("✅ 5/5 sampel valid. Membuat template untuk semua model...");
       scanline?.classList.add("hidden");
@@ -240,7 +218,6 @@ async function handleCapture(blob) {
       await finalizeEnrollment();
       return;
     }
-
     setHint(`✅ Sampel ${sampleCount}/5 valid untuk semua model.`);
     await sleep(500);
     const next = findFirstEmptySlot();
@@ -267,23 +244,18 @@ async function uploadCaptureWithRetry(blob, index) {
       if (attempt < 3) await sleep(1200);
     }
   }
-  throw new Error(
-    `Sampel ${index + 1} gagal disimpan setelah 3 percobaan: ${lastError?.message || "koneksi bermasalah"}.`,
-  );
+  throw new Error(`Sampel ${index + 1} gagal disimpan setelah 3 percobaan: ${lastError?.message || "koneksi bermasalah"}.`);
 }
 
 async function finalizeEnrollment() {
   await showStep("verifying");
   initVerifyUI();
-
   let stepsDone = 0;
   const totalSteps = VERIFY_STEPS_CONFIG.length;
   const advance = () => setVerifyProgress(++stepsDone, totalSteps);
-
   try {
     setVerifyStep("create-user", "active");
     setVerifyMsg("Membuat profil pengguna di server...");
-
     const newUser = await createUser(pendingName);
     currentUserId = newUser.id;
     isUserCreated = true;
@@ -295,14 +267,9 @@ async function finalizeEnrollment() {
       const stepId = `upload-${index + 1}`;
       setVerifyStep(stepId, "active");
       setVerifyMsg(`Membuat template sampel ${index + 1}/5 untuk semua model...`);
-
       const result = await uploadCaptureWithRetry(capturedBlobs[index], index);
       detectedModelCount = result.model_count;
-      setVerifyStep(
-        stepId,
-        "done",
-        `Sampel ${index + 1}/5 → ${result.model_count} model tersimpan ✓`,
-      );
+      setVerifyStep(stepId, "done", `Sampel ${index + 1}/5 → ${result.model_count} model tersimpan ✓`);
       advance();
       await sleep(250);
     }
@@ -310,7 +277,6 @@ async function finalizeEnrollment() {
     setVerifyStep("verify", "active");
     setVerifyMsg("Memverifikasi template per model di database...");
     const readyCheck = await verifyUserReadyAll(currentUserId);
-
     if (!readyCheck.ready) {
       const incomplete = Object.entries(readyCheck.models)
         .filter(([, info]) => !info.ready)
@@ -320,20 +286,15 @@ async function finalizeEnrollment() {
     }
 
     const modelCount = Object.keys(readyCheck.models).length || detectedModelCount;
-    const totalTemplates = Object.values(readyCheck.models).reduce(
-      (sum, info) => sum + info.template_count,
-      0,
-    );
-
-    setVerifyStep(
-      "verify",
-      "done",
-      `${MAX_SAMPLES} sampel × ${modelCount} model terverifikasi ✓`,
-    );
+    const totalTemplates = Object.values(readyCheck.models).reduce((sum, info) => sum + info.template_count, 0);
+    setVerifyStep("verify", "done", `${MAX_SAMPLES} sampel × ${modelCount} model terverifikasi ✓`);
     advance();
     setVerifyProgress(totalSteps, totalSteps);
     setVerifyMsg("✅ Semua model siap. Lanjut isi data diri.");
 
+    // Biometric enrollment is complete. From this point navigation must never
+    // trigger the incomplete-session rollback in cleanupOnExit().
+    isUserCreated = false;
     webcam?.stop();
     buildSuccessScreen({ modelCount, totalTemplates });
     await sleep(350);
@@ -342,17 +303,11 @@ async function finalizeEnrollment() {
     setVerifyMsg(`❌ ${error.message}`);
     toast.error(error.message, "Enrollment Gagal");
     console.error("Enrollment error:", error);
-
-    // This flow only creates new users, so rollback the whole user to avoid
-    // partially-enrolled model namespaces or duplicate templates on retry.
     if (isUserCreated && currentUserId) {
-      await deleteUser(currentUserId).catch((rollbackError) => {
-        console.error("Rollback failed:", rollbackError);
-      });
+      await deleteUser(currentUserId).catch((rollbackError) => console.error("Rollback failed:", rollbackError));
     }
     isUserCreated = false;
     currentUserId = null;
-
     showRecoveryPrompt({
       title: "Enrollment gagal",
       message: error.message,
@@ -374,17 +329,14 @@ function renderSampleThumbnail(blob, index) {
   const url = URL.createObjectURL(blob);
   _thumbUrls.push(url);
   slot.innerHTML = "";
-
   const image = document.createElement("img");
   image.src = url;
   image.alt = `Sampel ${index + 1}`;
   image.className = "sample-slot__img";
-
   const check = document.createElement("div");
   check.className = "sample-slot__check";
   check.textContent = "✓";
   check.setAttribute("aria-label", `Sampel ${index + 1} berhasil`);
-
   slot.appendChild(image);
   slot.appendChild(check);
   slot.classList.add("sample-slot--captured");
@@ -392,21 +344,15 @@ function renderSampleThumbnail(blob, index) {
 
 function buildSuccessScreen({ modelCount, totalTemplates }) {
   if (successName) successName.textContent = currentUserName;
-  if (successTemplateCount) {
-    successTemplateCount.textContent = `${MAX_SAMPLES} sampel × ${modelCount} model = ${totalTemplates} template tersimpan`;
-  }
+  if (successTemplateCount) successTemplateCount.textContent = `${MAX_SAMPLES} sampel × ${modelCount} model = ${totalTemplates} template tersimpan`;
   if (!successThumbs) return;
-
   successThumbs.innerHTML = "";
   capturedBlobs.forEach((blob, index) => {
     const url = URL.createObjectURL(blob);
     _thumbUrls.push(url);
     const node = document.createElement("div");
     node.className = "success-thumb";
-    node.innerHTML = `
-      <img src="${url}" alt="Sampel ${index + 1}">
-      <div class="success-thumb__label">S${index + 1}</div>
-    `;
+    node.innerHTML = `<img src="${url}" alt="Sampel ${index + 1}"><div class="success-thumb__label">S${index + 1}</div>`;
     successThumbs.appendChild(node);
   });
 }
@@ -418,7 +364,6 @@ function updatePoseGuide(nextIndex) {
     if (index < nextIndex) item.classList.add("pose-item--done");
     else if (index === nextIndex) item.classList.add("pose-item--active");
   });
-
   const pose = POSE_GUIDE[nextIndex] || POSE_GUIDE[MAX_SAMPLES - 1];
   if (poseInstructionIcon) poseInstructionIcon.textContent = pose.icon;
   if (poseInstructionText) poseInstructionText.textContent = pose.hint.replace(/^.{1,3}\s/, "");
@@ -427,9 +372,7 @@ function updatePoseGuide(nextIndex) {
 }
 
 function findFirstEmptySlot() {
-  for (let index = 0; index < MAX_SAMPLES; index++) {
-    if (!capturedBlobs[index]) return index;
-  }
+  for (let index = 0; index < MAX_SAMPLES; index++) if (!capturedBlobs[index]) return index;
   return MAX_SAMPLES - 1;
 }
 
@@ -444,46 +387,22 @@ function clearSlotActive(index) {
 function showRecoveryPrompt({ title, message, actionLabel, onAction, secondaryLabel, onSecondary }) {
   const container = document.getElementById("verify-steps-list")?.parentElement || steps.verifying;
   if (!container) return;
-
   const promptId = "enroll-recovery-prompt";
   document.getElementById(promptId)?.remove();
   const node = document.createElement("div");
   node.id = promptId;
   node.className = "ux-anim-fade-in";
-  node.style.cssText =
-    "margin-top:var(--space-5);padding:var(--space-5);border:1px solid var(--color-border);" +
-    "border-radius:12px;background:var(--color-surface-warm);text-align:center;";
-  node.innerHTML = `
-    <div style="font-size:1.8rem;margin-bottom:var(--space-3)">⚠️</div>
-    <h3 style="margin:0 0 var(--space-2)">${escapeHtml(title)}</h3>
-    <p class="text-sm" style="color:var(--color-coffee-light);margin:0 0 var(--space-5)">${escapeHtml(message)}</p>
-    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-      <button type="button" class="btn btn--primary btn--sm" data-act="primary">${escapeHtml(actionLabel)}</button>
-      ${secondaryLabel ? `<button type="button" class="btn btn--secondary btn--sm" data-act="secondary">${escapeHtml(secondaryLabel)}</button>` : ""}
-    </div>
-  `;
+  node.style.cssText = "margin-top:var(--space-5);padding:var(--space-5);border:1px solid var(--color-border);border-radius:12px;background:var(--color-surface-warm);text-align:center;";
+  node.innerHTML = `<div style="font-size:1.8rem;margin-bottom:var(--space-3)">⚠️</div><h3 style="margin:0 0 var(--space-2)">${escapeHtml(title)}</h3><p class="text-sm" style="color:var(--color-coffee-light);margin:0 0 var(--space-5)">${escapeHtml(message)}</p><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button type="button" class="btn btn--primary btn--sm" data-act="primary">${escapeHtml(actionLabel)}</button>${secondaryLabel ? `<button type="button" class="btn btn--secondary btn--sm" data-act="secondary">${escapeHtml(secondaryLabel)}</button>` : ""}</div>`;
   container.appendChild(node);
-  node.querySelector('[data-act="primary"]')?.addEventListener("click", () => {
-    node.remove();
-    onAction?.();
-  });
-  node.querySelector('[data-act="secondary"]')?.addEventListener("click", () => {
-    node.remove();
-    onSecondary?.();
-  });
+  node.querySelector('[data-act="primary"]')?.addEventListener("click", () => { node.remove(); onAction?.(); });
+  node.querySelector('[data-act="secondary"]')?.addEventListener("click", () => { node.remove(); onSecondary?.(); });
 }
 
 function initVerifyUI() {
   const list = document.getElementById("verify-steps-list");
   if (!list) return;
-  list.innerHTML = VERIFY_STEPS_CONFIG.map(
-    (step) => `
-      <div class="vstep vstep--pending" id="vstep-${step.id}" role="listitem">
-        <div class="vstep__indicator" aria-hidden="true">–</div>
-        <span class="vstep__label">${step.label}</span>
-      </div>
-    `,
-  ).join("");
+  list.innerHTML = VERIFY_STEPS_CONFIG.map((step) => `<div class="vstep vstep--pending" id="vstep-${step.id}" role="listitem"><div class="vstep__indicator" aria-hidden="true">–</div><span class="vstep__label">${step.label}</span></div>`).join("");
   setVerifyProgress(0, VERIFY_STEPS_CONFIG.length);
   setVerifyMsg("Mempersiapkan multi-model enrollment...");
 }
@@ -525,10 +444,7 @@ function resetCaptureUI() {
     const slot = document.getElementById(`sample-slot-${index}`);
     if (!slot) continue;
     slot.classList.remove("sample-slot--captured", "sample-slot--active-slot");
-    slot.innerHTML = `
-      <div class="sample-slot__number">${index + 1}</div>
-      <div class="sample-slot__icon">${POSE_GUIDE[index].icon}</div>
-    `;
+    slot.innerHTML = `<div class="sample-slot__number">${index + 1}</div><div class="sample-slot__icon">${POSE_GUIDE[index].icon}</div>`;
   }
   updatePoseGuide(0);
   updateCaptureProgressUI();
@@ -544,8 +460,7 @@ function updateCaptureProgress() {
 function updateCaptureProgressUI() {
   if (sampleBadge) {
     sampleBadge.textContent = `${sampleCount} / ${MAX_SAMPLES}`;
-    sampleBadge.className =
-      "badge " + (sampleCount >= MAX_SAMPLES ? "badge--identified" : "badge--scanning");
+    sampleBadge.className = "badge " + (sampleCount >= MAX_SAMPLES ? "badge--identified" : "badge--scanning");
   }
   document.getElementById("sample-stepper-wrapper")?.setAttribute("aria-valuenow", String(sampleCount));
   sampleDots.forEach((dot, index) => {
@@ -594,9 +509,7 @@ async function restartFromName() {
 
 async function cancelEnrollment() {
   webcam?.stop();
-  if (isUserCreated && currentUserId) {
-    await deleteUser(currentUserId).catch(() => {});
-  }
+  if (isUserCreated && currentUserId) await deleteUser(currentUserId).catch(() => {});
   resetLocalState();
   smoothBack("index.html");
 }
@@ -610,24 +523,12 @@ function cleanupOnExit() {
   webcam?.stop();
   revokeThumbs();
   if (isUserCreated && currentUserId) {
-    fetch(`${BASE_URL}/users/${currentUserId}`, {
-      method: "DELETE",
-      keepalive: true,
-    }).catch(() => {});
+    fetch(`${BASE_URL}/users/${currentUserId}`, { method: "DELETE", keepalive: true }).catch(() => {});
   }
 }
 
 function escapeHtml(value) {
-  return String(value).replace(
-    /[&<>"']/g,
-    (char) => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#039;",
-    })[char],
-  );
+  return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[char]);
 }
 
 init();
