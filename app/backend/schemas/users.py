@@ -11,12 +11,15 @@ class UserProfileRequest(BaseModel):
     kelas_jabatan: str = Field(None, max_length=100)
     initial_balance: float = Field(0.0, ge=0.0)
 
+
 class UserProfileResponse(BaseModel):
     nik: str | None
     kelas_jabatan: str | None
 
+
 class WalletResponse(BaseModel):
     balance: float
+
 
 class UserResponse(BaseModel):
     id: int
@@ -33,8 +36,35 @@ class TemplateCreateResponse(BaseModel):
     embedding_norm: float
 
 
+class MultiModelTemplateItem(BaseModel):
+    template_id: int
+    model_id: str
+    model_version: str
+    embedding_norm: float
+
+
+class MultiModelTemplateCreateResponse(BaseModel):
+    quality_score: float
+    quality_status: str
+    model_count: int
+    templates: list[MultiModelTemplateItem]
+
+
+class ModelReadinessResponse(BaseModel):
+    model_version: str
+    template_count: int
+    ready: bool
+
+
+class VerifyReadyAllResponse(BaseModel):
+    ready: bool
+    required: int = 5
+    models: dict[str, ModelReadinessResponse]
+
+
 class DeleteUserResponse(BaseModel):
     deleted: bool
+
 
 class VerifyReadyResponse(BaseModel):
     ready: bool
