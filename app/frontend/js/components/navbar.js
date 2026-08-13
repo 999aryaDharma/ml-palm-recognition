@@ -48,11 +48,14 @@ export function mountNavbar() {
         ${NAV_ITEMS.map((item) => renderNavItem(item, currentPath, rootPrefix)).join("")}
       </nav>
 
+      <div id="navbar-model-selector" class="navbar-model-selector" style="margin-left: auto; margin-right: 12px;"></div>
+
       <div class="backend-status backend-status--checking" id="backend-status" aria-live="polite">
         <span class="status-dot status-dot--pulse"></span>
         <span id="backend-status-label">Memeriksa...</span>
       </div>
     `;
+
 
     pollBackendStatus().catch(() => {});
     initPageTransitions();

@@ -200,6 +200,44 @@ def test_enrollment_service_model_id():
     print("  [PASS] test_enrollment_service_model_id")
 
 
+def test_api_invalid_model_id_returns_404():
+    """POST /identify with explicit invalid model_id returns HTTP 404 (Req 6)."""
+    from fastapi.testclient import TestClient
+    from main import app
+
+    client = TestClient(app)
+    # Create dummy image file
+    buf = io.BytesIO()
+    Image.new("RGB", (100, 100), color="white").save(buf, format="JPEG")
+    buf.seek(0)
+
+    response = client.post(
+        "/identify",
+        data={"model_id": "nonexistent_model_xyz"},
+        files={"image": ("palm.jpg", buf, "image/jpeg")},
+    )
+    assert response.status_code == 404
+    detail = response.json().get("detail", {})
+    assert detail.get("error") == "model_not_found"
+    print("  [PASS] test_api_invalid_model_id_returns_404")
+
+
+def test_api_get_models():
+    """GET /models returns list of models (Req 22)."""
+    from fastapi.testclient import TestClient
+    from main import app
+
+    client = TestClient(app)
+    response = client.get("/models")
+    assert response.status_code == 200
+    data = response.json()
+    assert "models" in data
+    assert "default_model_id" in data
+    print("  [PASS] test_api_get_models")
+
+
+import io
+
 def run_backend_tests():
     tests = [
         ("Registry: PIL contract", test_registry_discovery_and_pil_contract),
@@ -207,6 +245,8 @@ def run_backend_tests():
         ("Database: model_id filtering", test_database_model_filtering),
         ("Identification: per-request selection", test_identification_service_per_request_selection),
         ("Enrollment: model_id support", test_enrollment_service_model_id),
+        ("API: invalid model_id returns 404", test_api_invalid_model_id_returns_404),
+        ("API: GET /models discovery", test_api_get_models),
     ]
 
     print("\n" + "=" * 60)
@@ -237,3 +277,4 @@ def run_backend_tests():
 
 if __name__ == "__main__":
     run_backend_tests()
+

@@ -18,8 +18,15 @@ async def identify_palm(
     """Identify user from palm image using per-request model_id selection."""
     pil_image = await upload_to_pil(image, request.app.state.settings.max_upload_mb)
 
-    service = IdentificationService(request.app.state, db, model_id=model_id)
-    result, latency_ms = service.identify_palm(pil_image)
+    try:
+        service = IdentificationService(request.app.state, db, model_id=model_id)
+        result, latency_ms = service.identify_palm(pil_image)
+    except KeyError:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "model_not_found", "message": f"Model '{model_id}' tidak ditemukan di registry."}
+        )
+
 
     if result["status"] == "error":
         return IdentifyResponse(

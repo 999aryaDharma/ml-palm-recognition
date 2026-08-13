@@ -19,11 +19,13 @@
 
 import { mountNavbar }               from "../components/navbar.js";
 import { WebcamCapture }             from "../components/webcam.js";
+import { ModelSelector }             from "../components/model-selector.js";
 import { createUser, addTemplate, deleteUser, verifyUserReady } from "../api/users.js";
 import { BASE_URL }                  from "../api/client.js";
 import { toast }                     from "../components/toast.js";
 import { QUALITY_HINTS, sleep }      from "../utils.js";
 import { smoothBack, withLoading }   from "../ux.js";
+
 
 // ── Konfigurasi ───────────────────────────────────────────
 const MAX_SAMPLES = 5;
@@ -60,6 +62,10 @@ let sampleCount    = 0;
 let isCapturing    = false;
 let isUserCreated  = false;
 let capturedBlobs  = [];   // Array lokal: 5 blob di RAM, upload saat finalizeEnrollment()
+let modelSelector = null;
+let selectedEnrollmentModelId = null;
+let selectedEnrollmentVersion = null;
+
 
 // ── DOM refs ──────────────────────────────────────────────
 let inputName, btnToCapture, btnCancelCapture;
@@ -104,11 +110,24 @@ async function init() {
     success:   document.getElementById("step-success"),
   };
 
+  const selectorContainer = document.getElementById("navbar-model-selector");
+  if (selectorContainer) {
+    modelSelector = new ModelSelector(selectorContainer);
+    await modelSelector.init();
+    selectedEnrollmentModelId = modelSelector.selectedModelId;
+    selectedEnrollmentVersion = modelSelector.selectedVersion;
+    modelSelector.onChange((id) => {
+      selectedEnrollmentModelId = id;
+      selectedEnrollmentVersion = modelSelector.selectedVersion;
+    });
+  }
+
   // Event listeners
   document.getElementById("form-name")?.addEventListener("submit", (e) => {
     e.preventDefault();
     goToCaptureStep();
   });
+
 
   document.getElementById("form-profile")?.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -216,8 +235,10 @@ async function submitProfile() {
 // WEBCAM
 // ─────────────────────────────────────────────────────────
 async function initWebcam() {
+  modelSelector?.setDisabled(true);
   setHint("🎥 Menyalakan kamera...");
   clearQualityHint();
+
 
   try {
     webcam = new WebcamCapture(videoEl, {
@@ -404,7 +425,7 @@ async function finalizeEnrollment() {
 
       for (let attempt = 1; attempt <= 3 && !ok && !isMLFail; attempt++) {
         try {
-          await addTemplate(currentUserId, capturedBlobs[i]);
+          await addTemplate(currentUserId, capturedBlobs[i], selectedEnrollmentModelId);
           ok = true;
         } catch (uploadErr) {
           lastErr = uploadErr;
@@ -490,7 +511,8 @@ async function finalizeEnrollment() {
     setVerifyMsg("Memverifikasi kelengkapan template di database...");
     await sleep(800);
 
-    const readyCheck = await verifyUserReady(currentUserId);
+    const readyCheck = await verifyUserReady(currentUserId, selectedEnrollmentModelId, selectedEnrollmentVersion);
+
     if (!readyCheck.ready || readyCheck.template_count < 5) {
       setVerifyStep("verify", "error");
       throw new Error(
@@ -816,7 +838,9 @@ function clearQualityHint() {
 // STATE RESET & CLEANUP
 // ─────────────────────────────────────────────────────────
 function resetLocalState() {
+  modelSelector?.setDisabled(false);
   capturedBlobs  = new Array(MAX_SAMPLES).fill(null);
+
   sampleCount    = 0;
   currentUserId  = null;
   isUserCreated  = false;

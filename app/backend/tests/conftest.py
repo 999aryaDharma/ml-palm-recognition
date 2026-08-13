@@ -85,6 +85,7 @@ def clean_db(app_with_mocks):
     db.query(Template).delete()
     db.query(User).delete()
     db.commit()
-    app_with_mocks.app.state.cache._users = []  # Clear cache
+    app_with_mocks.app.state.cache._store.clear()  # Clear cache
+
     db.close()
     yield

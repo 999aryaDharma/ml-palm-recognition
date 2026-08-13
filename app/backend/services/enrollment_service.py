@@ -1,6 +1,7 @@
 """
 Enrollment Service Module
 Handles biometric template enrollment using model_id provenance.
+Strictly hard-fails with KeyError if an explicit invalid model_id is requested.
 """
 from PIL import Image
 import numpy as np
@@ -16,7 +17,13 @@ class EnrollmentService:
         self.settings = getattr(app_state, "settings", None)
 
         default_id = self.settings.default_model_id if self.settings else "mobilefacenet-pretrained"
-        target_model_id = model_id or default_id
+
+        if model_id is not None and model_id != "":
+            if not self.registry or not self.registry.is_available(model_id):
+                raise KeyError(f"model_not_found:{model_id}")
+            target_model_id = model_id
+        else:
+            target_model_id = default_id
 
         if self.registry and self.registry.is_available(target_model_id):
             self.runtime = self.registry.get(target_model_id)

@@ -81,7 +81,13 @@ def create_user(payload: UserCreateRequest, db: Session = Depends(get_db)):
 
     user = repo.create(payload.name)
     user.templates = []
+    if not user.wallet:
+        wallet = Wallet(user_id=user.id, balance=500000.0)
+        db.add(wallet)
+        db.commit()
+        db.refresh(user)
     return _to_user_response(user)
+
 
 
 @router.get("", response_model=list[UserResponse])
@@ -137,10 +143,14 @@ async def add_template(
 
     pil_image = await upload_to_pil(image, request.app.state.settings.max_upload_mb)
 
-    service = EnrollmentService(request.app.state, model_id=model_id)
-
     try:
+        service = EnrollmentService(request.app.state, model_id=model_id)
         embedding, quality_score, quality_status, target_model_id, target_version = service.process_template(pil_image)
+    except KeyError:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "model_not_found", "message": f"Model '{model_id}' tidak ditemukan di registry."}
+        )
     except ValueError as exc:
         code = str(exc)
         messages = {
@@ -188,6 +198,7 @@ async def add_template(
 def verify_ready(
     user_id: int,
     model_id: str | None = None,
+    model_version: str | None = None,
     db: Session = Depends(get_db),
 ):
     repo = UserRepository(db)
@@ -200,7 +211,7 @@ def verify_ready(
         )
 
     template_repo = TemplateRepository(db)
-    templates = template_repo.list_by_user(user_id, model_id=model_id)
+    templates = template_repo.list_by_user(user_id, model_id=model_id, model_version=model_version)
     template_count = len(templates)
     required_templates = 5
 

@@ -39,6 +39,17 @@ export class ModelSelector {
     return this._selectedId;
   }
 
+  get selectedVersion() {
+    const model = this._models.find(m => m.id === this._selectedId);
+    return model ? model.version : '1.0.0';
+  }
+
+  setDisabled(disabled) {
+    const select = this._el ? this._el.querySelector('#model-selector-select') : null;
+    if (select) select.disabled = !!disabled;
+  }
+
+
   _render() {
     if (this._models.length === 0) {
       this._el.innerHTML = '';
@@ -97,3 +108,19 @@ export class ModelSelector {
     return `<span class="model-badge ${cls}">${label}</span>`;
   }
 }
+
+/** Helper to wire ModelSelector from navbar container to PalmScanner */
+export async function setupScannerModelSelector(scanner) {
+  const container = document.getElementById("navbar-model-selector");
+  if (!container) return null;
+  const selector = new ModelSelector(container);
+  await selector.init();
+  if (scanner && selector.selectedModelId) {
+    scanner.setModelId(selector.selectedModelId);
+  }
+  selector.onChange((modelId) => {
+    if (scanner) scanner.setModelId(modelId);
+  });
+  return selector;
+}
+

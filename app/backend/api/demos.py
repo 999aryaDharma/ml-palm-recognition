@@ -161,4 +161,31 @@ async def access_check(
         score=round(result["score"], 4),
         latency_ms=latency_ms,
         reason="authorized" if granted else ("not_authorized" if identified else "unknown_user"),
-    )
+    )
+
+
+@router.post("/patient/checkin")
+def patient_checkin(payload: dict, db: Session = Depends(get_db)):
+    """Record patient check-in demo action."""
+    user_id = payload.get("user_id")
+    user = _get_user_or_404(user_id, db)
+    log_repo = DemoLogRepository(db)
+    log = log_repo.create(
+        user_id=user.id,
+        demo_type="patient",
+        payload={"action": "checkin"},
+        match_score=float(payload.get("match_score", 0.0)),
+    )
+    return {
+        "status": "success",
+        "user": {"id": user.id, "name": user.name},
+        "patient": {
+            "id": user.id,
+            "name": user.name,
+            "nik": user.profile.nik if user.profile else "1234567890123456",
+        },
+        "timestamp": log.timestamp.isoformat() if hasattr(log.timestamp, "isoformat") else str(log.timestamp),
+    }
+
+
+

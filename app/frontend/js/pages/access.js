@@ -11,7 +11,9 @@
 
 import { mountNavbar } from "../components/navbar.js";
 import { PalmScanner } from "../components/palm-scanner.js";
+import { setupScannerModelSelector } from "../components/model-selector.js";
 import { DiagnosticTerminal } from "../components/terminal.js";
+
 import { toast } from "../components/toast.js";
 import { apiFetch } from "../api/client.js";
 import { getUsers } from "../api/users.js";
@@ -70,7 +72,10 @@ async function init() {
     captureIntervalMs: 1500,
   });
 
+  await setupScannerModelSelector(scanner);
+
   btnStartScan?.addEventListener("click", startScanner);
+
   btnRefreshAuth?.addEventListener("click", () => loadAuthorizedPanel(true));
 
   loadAuthorizedPanel();

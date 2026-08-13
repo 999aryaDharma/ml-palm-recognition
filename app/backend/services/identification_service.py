@@ -2,6 +2,7 @@
 Identification Service
 Full biometric pipeline: detection → ROI → embedding → cosine matching.
 Uses per-request model selection via ModelRegistry.
+Strictly hard-fails with KeyError if an explicit invalid model_id is requested.
 """
 import time
 import numpy as np
@@ -23,7 +24,15 @@ class IdentificationService:
         self.db = db
 
         default_id = self.settings.default_model_id if self.settings else "mobilefacenet-pretrained"
-        target_model_id = model_id or default_id
+
+        if model_id is not None and model_id != "":
+            # Explicit model_id requested — MUST exist in registry or hard fail 404
+            if not self.registry or not self.registry.is_available(model_id):
+                raise KeyError(f"model_not_found:{model_id}")
+            target_model_id = model_id
+        else:
+            # Fallback ONLY when model_id was not explicitly specified
+            target_model_id = default_id
 
         if self.registry and self.registry.is_available(target_model_id):
             self.runtime = self.registry.get(target_model_id)
@@ -56,7 +65,6 @@ class IdentificationService:
                 res["landmarks"] = detection_data.get("landmarks")
             return res, int(time.time() * 1000 - start_ms)
 
-        # ── Stage 1: Hand detection ───────────────────────────────────────────
         if self.detector is None or self.recognizer is None:
             return _err("backend_not_ready")
 
@@ -64,18 +72,15 @@ class IdentificationService:
         if detection is None:
             return _err("detection_failed")
 
-        # ── Stage 2a: ROI extraction ──────────────────────────────────────────
         from ml.roi import extract_palm_roi
         roi = extract_palm_roi(image, detection["landmarks"])
         if roi is None:
             return _err("roi_extraction_failed", detection)
 
-        # ── Stage 2b: Embedding ───────────────────────────────────────────────
         embedding = self.recognizer.extract_embedding(roi)
         if embedding is None:
             return _err("image_too_blurry", detection)
 
-        # ── Stage 3: Matching (segmented by model_id and model_version) ────────
         enrolled = self.cache.get_all(self.model_id, self.model_version) if self.cache else []
         if not enrolled:
             return _err("no_templates_enrolled", detection)
@@ -100,7 +105,6 @@ class IdentificationService:
 
         latency_ms = int(time.time() * 1000 - start_ms)
 
-        # Pure decision rule: raw_score >= threshold (from runtime.threshold)
         if best_raw_score >= self.threshold:
             return {
                 "status": "identified",

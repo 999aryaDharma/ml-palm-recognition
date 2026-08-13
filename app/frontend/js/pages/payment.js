@@ -12,7 +12,9 @@
 
 import { mountNavbar } from "../components/navbar.js";
 import { PalmScanner } from "../components/palm-scanner.js";
+import { setupScannerModelSelector } from "../components/model-selector.js";
 import { DiagnosticTerminal } from "../components/terminal.js";
+
 import { paymentPay } from "../api/demos.js";
 import { showModal } from "../components/modal.js";
 import { toast } from "../components/toast.js";
@@ -88,7 +90,10 @@ async function init() {
     pauseOnUnknown: true,
   });
 
+  await setupScannerModelSelector(scanner);
+
   btnStartPayment.addEventListener("click", startPayment);
+
   btnStopPayment?.addEventListener("click", stopPayment);
 
   window.addEventListener("beforeunload", () => scanner?.stop());

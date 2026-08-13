@@ -258,19 +258,69 @@ def test_identity_isolation_hard_fail():
     print("  [PASS] test_identity_isolation_hard_fail")
 
 
-def test_duplicate_path_hard_fail():
+def test_duplicate_path_hard_fail(tmp_path):
     """Phase 0 raises ValueError if duplicate paths exist within split."""
     from scripts.train_palmnet_lite import run_phase0_sanity
 
+    # Create dummy image file
+    img_file = tmp_path / "img1.png"
+    img_file.write_bytes(b"dummy")
+
+    # Create CSV with duplicate path
+    train_csv = tmp_path / "train_dup.csv"
+    train_csv.write_text(
+        f"path,label,palm_id,session\n{img_file},0,p1,1\n{img_file},0,p1,1\n"
+    )
+    val_csv = tmp_path / "val_dup.csv"
+    val_csv.write_text(
+        f"path,label,palm_id,session\n{img_file},0,p1,2\n"
+    )
+    test_csv = tmp_path / "test_dup.csv"
+    test_csv.write_text(
+        f"path,label,palm_id,session\n{img_file},0,p2,1\n"
+    )
+
     bad_config = {
         "dataset": {
-            "train_csv": "data/splits/train.csv",
-            "val_csv": "data/splits/val.csv",
-            "test_csv": "data/splits/test.csv",
+            "train_csv": str(train_csv),
+            "val_csv": str(val_csv),
+            "test_csv": str(test_csv),
         }
     }
-    # Should pass normally if splits are clean
+    with pytest.raises(ValueError) as exc_info:
+        run_phase0_sanity(bad_config, torch.device("cpu"))
+    assert "duplikat" in str(exc_info.value).lower()
     print("  [PASS] test_duplicate_path_hard_fail")
+
+
+def test_evaluate_phase1_gate():
+    """Pure unit test for Phase 1 gate logic decision function."""
+    from scripts.train_palmnet_lite import evaluate_phase1_gate
+
+    assert evaluate_phase1_gate(0.80, pass_threshold=0.70, review_threshold=0.50, force=False) == "passed"
+    assert evaluate_phase1_gate(0.60, pass_threshold=0.70, review_threshold=0.50, force=False) == "needs_review"
+    assert evaluate_phase1_gate(0.30, pass_threshold=0.70, review_threshold=0.50, force=False) == "failed"
+    assert evaluate_phase1_gate(0.60, pass_threshold=0.70, review_threshold=0.50, force=True) == "forced"
+    assert evaluate_phase1_gate(0.30, pass_threshold=0.70, review_threshold=0.50, force=True) == "forced"
+    print("  [PASS] test_evaluate_phase1_gate")
+
+
+def test_missing_required_columns_fails(tmp_path):
+    from scripts.train_palmnet_lite import run_phase0_sanity
+
+    train_csv = tmp_path / "train.csv"
+    train_csv.write_text("path,label\nsome/path,0\n")  # Missing palm_id, session
+    val_csv = tmp_path / "val.csv"
+    val_csv.write_text("path,label,palm_id,session\nsome/path,0,p1,2\n")
+    test_csv = tmp_path / "test.csv"
+    test_csv.write_text("path,label,palm_id,session\nsome/path2,0,p2,1\n")
+
+    cfg = {"dataset": {"train_csv": str(train_csv), "val_csv": str(val_csv), "test_csv": str(test_csv)}}
+    with pytest.raises(ValueError) as exc_info:
+        run_phase0_sanity(cfg, torch.device("cpu"))
+    assert "missing" in str(exc_info.value).lower()
+    print("  [PASS] test_missing_required_columns_fails")
+
 
 
 # ─── TRAINING & GATE TESTS ───────────────────────────────────────────────────
@@ -533,6 +583,8 @@ def run_all_tests():
         ("Data: no flip policy", test_no_flip_policy),
         ("Data: identity isolation hard fail", test_identity_isolation_hard_fail),
         ("Data: duplicate path hard fail", test_duplicate_path_hard_fail),
+        ("Training: phase1 gate evaluation", test_evaluate_phase1_gate),
+        ("Data: missing required columns fail", test_missing_required_columns_fails),
         ("Training: phase1 minibatch", test_phase1_minibatch),
         ("Training: phase2 minibatch", test_phase2_minibatch),
         ("Training: checkpoint save/load", test_checkpoint_save_load),
@@ -543,6 +595,8 @@ def run_all_tests():
         ("Registry: mobilefacenet load", test_mobilefacenet_registry_load_if_artifact_present),
     ]
 
+    import tempfile
+    import inspect
     passed = 0
     failed = 0
     print("\n" + "=" * 60)
@@ -552,11 +606,17 @@ def run_all_tests():
     for name, test_fn in tests:
         print(f"\n{name}")
         try:
-            test_fn()
+            sig = inspect.signature(test_fn)
+            if "tmp_path" in sig.parameters:
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    test_fn(Path(tmpdir))
+            else:
+                test_fn()
             passed += 1
         except Exception as e:
             print(f"  [FAIL] {e}")
             failed += 1
+
 
     print("\n" + "=" * 60)
     print(f"Results: {passed} passed, {failed} failed out of {len(tests)}")

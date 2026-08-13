@@ -130,15 +130,20 @@ class TestIdentification:
         uid = _create_user(client, "Identifiable User")
         _add_templates(client, uid)
 
-        # Patch cache with the seeded embeddings so cosine similarity is 1.0
-        from ml.cache import EmbeddingCache
-        emb = np.ones(128, dtype=np.float32)
-        emb /= np.linalg.norm(emb)
-        client.app.state.cache._users = [{
+        # Extract real embedding for dummy ROI from active runtime to seed matching template
+        runtime = client.app.state.registry.get("mobilefacenet-pretrained")
+        from PIL import Image
+        roi = Image.new("RGB", (112, 112), color=(100, 100, 100))
+        emb = runtime.extract_embedding(roi)
+        assert emb is not None
+
+        client.app.state.cache._store[("mobilefacenet-pretrained", "1.0.0")] = [{
             "user_id": uid,
             "user_name": "Identifiable User",
             "embeddings": [emb] * 5,
         }]
+
+
 
         r = client.post(
             "/identify",

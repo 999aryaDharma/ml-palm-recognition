@@ -1,0 +1,29 @@
+{
+  "status": "passed",
+  "train_images": 4000,
+  "val_images": 4000,
+  "test_images": 4000,
+  "train_classes": 400,
+  "val_classes": 400,
+  "test_identities": 200,
+  "train_sessions": [
+    1
+  ],
+  "val_sessions": [
+    2
+  ],
+  "test_sessions": [
+    1,
+    2
+  ],
+  "train_identities": 400,
+  "val_identities": 400,
+  "duplicate_paths": 0,
+  "cross_split_duplicates": 0,
+  "identity_overlap_count": 0,
+  "missing_files": 0,
+  "unreadable_files": 0,
+  "protocol_valid": true,
+  "forward_smoke_ok": true,
+  "backward_smoke_ok": true
+}

@@ -41,10 +41,14 @@ export const addTemplate = (userId, imageBlob, modelId = null) => {
 export const getTemplates = (userId) => apiFetch(`/users/${userId}/templates`);
 
 /** GET /users/:id/verify-ready */
-export const verifyUserReady = (userId, modelId = null) => {
-  const query = modelId ? `?model_id=${encodeURIComponent(modelId)}` : "";
+export const verifyUserReady = (userId, modelId = null, modelVersion = null) => {
+  const params = new URLSearchParams();
+  if (modelId) params.append("model_id", modelId);
+  if (modelVersion) params.append("model_version", modelVersion);
+  const query = params.toString() ? `?${params.toString()}` : "";
   return apiFetch(`/users/${userId}/verify-ready${query}`);
 };
+
 
 /** POST /users/:id/profile */
 export const addProfile = (userId, payload) =>

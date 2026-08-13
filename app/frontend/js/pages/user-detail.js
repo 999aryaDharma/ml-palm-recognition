@@ -12,7 +12,9 @@
 import { mountNavbar } from "../components/navbar.js";
 import { getUser, deleteUser } from "../api/users.js";
 import { PalmScanner } from "../components/palm-scanner.js";
+import { setupScannerModelSelector } from "../components/model-selector.js";
 import { toast } from "../components/toast.js";
+
 import { showModal } from "../components/modal.js";
 import { formatDate } from "../utils.js";
 import { smoothBack, renderEmptyState, fadeSwap } from "../ux.js";
@@ -77,6 +79,9 @@ async function init() {
       );
     },
   });
+
+  await setupScannerModelSelector(scanner);
+
 
   btnTestScan?.addEventListener("click", toggleScan);
   btnDeleteUser?.addEventListener("click", confirmDelete);

@@ -160,45 +160,105 @@ class ModelRegistry:
         manifest_path = artifact_dir / "manifest.json"
         threshold_path = artifact_dir / "threshold.json"
 
-        if not model_pt.exists():
+        # Req 14: Required files for registered runtime
+        if not model_pt.exists() or not manifest_path.exists() or not threshold_path.exists():
+            print(f"[ModelRegistry] Rejecting {model_id} v{version}: missing required model.pt, manifest.json, or threshold.json")
             return None
 
         try:
-            # 1. Load manifest if present
-            manifest = {}
-            if manifest_path.exists():
-                with open(manifest_path) as f:
-                    manifest = json.load(f)
+            # Req 15: Manifest validation
+            with open(manifest_path) as f:
+                manifest = json.load(f)
 
-            # Validate manifest keys consistency
-            if manifest.get("model_id") and manifest["model_id"] != model_id:
-                print(f"[ModelRegistry] Manifest model_id mismatch: {manifest['model_id']} vs {model_id}")
+            if not isinstance(manifest, dict):
+                print(f"[ModelRegistry] Invalid manifest schema for {model_id} v{version}")
                 return None
-            if manifest.get("version") and manifest["version"] != version:
-                print(f"[ModelRegistry] Manifest version mismatch: {manifest['version']} vs {version}")
+
+            if manifest.get("model_id") != model_id:
+                print(f"[ModelRegistry] Manifest model_id mismatch: {manifest.get('model_id')} vs {model_id}")
                 return None
+            if manifest.get("version") != version:
+                print(f"[ModelRegistry] Manifest version mismatch: {manifest.get('version')} vs {version}")
+                return None
+
+            input_shape = manifest.get("input_shape")
+            if not isinstance(input_shape, list) or input_shape != [3, 112, 112]:
+                print(f"[ModelRegistry] Invalid input_shape in manifest: {input_shape}")
+                return None
+
+            output_dim = manifest.get("output_dim")
+            if output_dim != 128:
+                print(f"[ModelRegistry] Invalid output_dim in manifest: {output_dim}")
+                return None
+
+            normalization = manifest.get("normalization", {})
+            if not isinstance(normalization, dict):
+                print(f"[ModelRegistry] Invalid normalization in manifest")
+                return None
+            mean = normalization.get("mean")
+            std = normalization.get("std")
+            if not isinstance(mean, list) or len(mean) != 3 or not isinstance(std, list) or len(std) != 3:
+                print(f"[ModelRegistry] Invalid normalization mean/std length")
+                return None
+            if any(s <= 0 for s in std):
+                print(f"[ModelRegistry] Zero or negative std in normalization: {std}")
+                return None
+
+            if manifest.get("output_normalized") is not True:
+                print(f"[ModelRegistry] output_normalized must be True")
+                return None
+
+            training_mode = manifest.get("training_mode")
+            if training_mode not in ("scratch", "pretrained", "fine_tuned"):
+                print(f"[ModelRegistry] Invalid training_mode in manifest: {training_mode}")
+                return None
+
+            # Req 16: Threshold validation
+            with open(threshold_path) as f:
+                threshold_data = json.load(f)
+
+            if not isinstance(threshold_data, dict):
+                print(f"[ModelRegistry] Invalid threshold.json format")
+                return None
+
+            threshold_val = threshold_data.get("threshold")
+            if not isinstance(threshold_val, (int, float)) or not np.isfinite(threshold_val):
+                print(f"[ModelRegistry] Threshold value must be a finite number: {threshold_val}")
+                return None
+            threshold = float(threshold_val)
+            if not (-1.0 <= threshold <= 1.0):
+                print(f"[ModelRegistry] Threshold out of range [-1, 1]: {threshold}")
+                return None
+
+            metric = threshold_data.get("metric")
+            if metric != "cosine_similarity":
+                print(f"[ModelRegistry] Threshold metric must be 'cosine_similarity', got '{metric}'")
+                return None
+
+            # For PalmNet scratch deployable artifact, validation calibration is required
+            if manifest.get("deployable") is True or model_id == "palmnet-lite-scratch":
+                if threshold_data.get("calibration_split") != "validation":
+                    print(f"[ModelRegistry] Deployable model '{model_id}' requires calibration_split == 'validation', got '{threshold_data.get('calibration_split')}'")
+                    return None
 
             # 2. Load TorchScript model
             model = torch.jit.load(str(model_pt), map_location=self._device)
             model.eval()
 
-            # 3. Discovery smoke test: run dummy tensor
-            dummy = torch.randn(1, 3, 112, 112).to(self._device)
+            # Req 17: Discovery smoke test using manifest input_shape
+            dummy = torch.randn(1, *input_shape).to(self._device)
             with torch.no_grad():
                 out = model(dummy)
                 out = F.normalize(out, p=2, dim=1)
 
-            if out.shape != (1, 128) or not torch.isfinite(out).all():
+            if out.shape != (1, output_dim) or not torch.isfinite(out).all():
                 print(f"[ModelRegistry] Smoke test failed for {model_id} v{version}: shape={out.shape}")
                 return None
 
-            # 4. Load threshold
-            threshold_data = {}
-            threshold = 0.50
-            if threshold_path.exists():
-                with open(threshold_path) as f:
-                    threshold_data = json.load(f)
-                    threshold = float(threshold_data.get("threshold", 0.50))
+            norm_val = torch.norm(out, p=2, dim=1).item()
+            if abs(norm_val - 1.0) > 1e-2:
+                print(f"[ModelRegistry] L2 norm smoke test failed: norm={norm_val:.4f}")
+                return None
 
             # 5. Load metrics if present
             metrics = {}
@@ -208,7 +268,6 @@ class ModelRegistry:
                     metrics = json.load(f)
 
             name = manifest.get("name", model_id)
-            training_mode = manifest.get("training_mode", _infer_training_mode(model_id))
 
             return ModelRuntime(
                 model_id=model_id,
@@ -226,6 +285,7 @@ class ModelRegistry:
         except Exception as e:
             print(f"[ModelRegistry] Failed to load {model_id} v{version}: {e}")
             return None
+
 
     def get(self, model_id: str) -> ModelRuntime:
         if model_id not in self._registry:

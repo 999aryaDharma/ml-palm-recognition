@@ -17,20 +17,19 @@
 
 Gunakan checklist ini setiap kali progres berubah:
 
-- [ ] arsitektur final PalmNet-Lite sudah sesuai implementasi;
-- [ ] parameter count aktual sudah dicatat;
-- [ ] dataset dan split aktual sudah dicatat;
-- [ ] hyperparameter run terbaik sudah dicatat;
-- [ ] training curve sudah tersedia;
-- [ ] best epoch sudah dicatat;
-- [ ] evaluation metrics sudah diisi;
-- [ ] threshold calibration sudah diisi;
-- [ ] artifact size sudah dicatat;
-- [ ] local inference berhasil;
-- [ ] ModelRegistry berhasil memuat PalmNet-Lite;
-- [ ] frontend dapat memilih PalmNet-Lite;
-- [ ] keterbatasan aktual sudah diperbarui;
-- [ ] kesimpulan sudah disesuaikan dengan hasil nyata.
+- [x] arsitektur final PalmNet-Lite sudah sesuai implementasi;
+- [x] parameter count aktual sudah dicatat (393,472 params);
+- [x] scratch initialization implementation selesai;
+- [x] local inference & preprocessing ROI berhasil;
+- [x] ModelRegistry berhasil memuat PalmNet-Lite dan MobileFaceNet;
+- [x] frontend dapat memilih model per request pada scanner dan enrollment;
+- [x] dataset dan split aktual (Phase 0 PASSED: 4000 train, 4000 val, 4000 test images; 400 train identities, 400 val identities, 200 test identities);
+- [ ] hyperparameter run terbaik;
+- [ ] training curve;
+- [ ] best epoch;
+- [ ] evaluation metrics;
+- [ ] threshold calibration;
+- [ ] artifact size final.
 
 ---
 

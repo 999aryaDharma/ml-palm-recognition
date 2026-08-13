@@ -54,18 +54,28 @@ def main():
 
     paths_cfg = config.get("paths", {})
     trained_logs = resolve_ml_path(paths_cfg.get("trained_logs_dir", "artifacts/trained_logs/palmnet-lite-scratch"))
+    checkpoint_base = resolve_ml_path(paths_cfg.get("checkpoint_dir", "checkpoints/palmnet-lite-scratch"))
 
     if args.run_id:
         run_dir = trained_logs / args.run_id
         figures_dir = run_dir / "figures"
         run_dir.mkdir(parents=True, exist_ok=True)
+        if args.checkpoint == "checkpoints/palmnet-lite-scratch/checkpoint_phase2_best.pth":
+            ckpt_path = checkpoint_base / args.run_id / "checkpoint_phase2_best.pth"
+        else:
+            ckpt_path = resolve_ml_path(args.checkpoint)
     else:
         run_dir = resolve_ml_path("artifacts")
         figures_dir = run_dir / "figures"
+        ckpt_path = resolve_ml_path(args.checkpoint)
+
     figures_dir.mkdir(parents=True, exist_ok=True)
 
-    ckpt_path = resolve_ml_path(args.checkpoint)
+    if not ckpt_path.exists():
+        raise FileNotFoundError(f"Checkpoint tidak ditemukan: {ckpt_path}")
+
     ckpt = torch.load(ckpt_path, map_location=device)
+
     backbone = build_palmnet_lite(config.get("model", {}))
     state_dict = ckpt.get("backbone_state_dict", ckpt)
     backbone.load_state_dict(state_dict)

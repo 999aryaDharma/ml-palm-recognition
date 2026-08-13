@@ -56,6 +56,9 @@ export class PalmScanner {
     this.autoResumeOnIdentified = opts.autoResumeOnIdentified ?? true;
     this.pauseOnUnknown = opts.pauseOnUnknown ?? true;
 
+    // Model ID selection state
+    this.modelId = opts.modelId || null;
+
     this.isProcessing = false;
     this._resetTimer = null;
 
@@ -72,6 +75,11 @@ export class PalmScanner {
       captureInterval: this.captureIntervalMs,
       onCapture: (blob) => this._handleCapture(blob),
     });
+  }
+
+  /** Set client-side selected model ID for inference. */
+  setModelId(modelId) {
+    this.modelId = modelId;
   }
 
   /**
@@ -148,10 +156,11 @@ export class PalmScanner {
     this._setHint("🔍 Mendeteksi telapak tangan...", "info");
     if (this.processingLabelEl)
       this.processingLabelEl.textContent = "Mendeteksi...";
-    this.logFn("CAPTURE", "Frame captured, sending to backend...");
+    this.logFn("CAPTURE", `Frame captured, sending to backend (model: ${this.modelId || 'default'})...`);
 
     try {
-      const result = await identify(blob);
+      const result = await identify(blob, this.modelId);
+
 
       if (result.status === "error") {
         const fakeErr = new Error(result.message);
