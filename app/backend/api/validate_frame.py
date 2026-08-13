@@ -9,8 +9,8 @@ Tidak menyimpan apapun ke database.
 
 POST /validate-frame  — cek kualitas frame telapak (full pipeline)
 """
-from fastapi import APIRouter, Request, UploadFile, File, HTTPException
-
+from fastapi import APIRouter, Request, UploadFile, File, HTTPException, Form
+from services.enrollment_service import EnrollmentService
 from services.image_service import upload_to_pil
 from ml.roi import extract_palm_roi
 
@@ -21,63 +21,61 @@ router = APIRouter()
 async def validate_frame(
     request: Request,
     image: UploadFile = File(...),
+    model_id: str | None = Form(None),
 ):
-    """
-    Validasi kualitas frame telapak tangan tanpa menyimpan apapun.
+    settings = request.app.state.settings
 
-    Menjalankan pipeline LENGKAP: parse → detection → ROI → embedding.
-    Pipeline IDENTIK dengan add_template, sehingga frame yang lolos
-    validasi ini PASTI bisa disimpan sebagai template (tidak ada false-positive).
+    pil_image = await upload_to_pil(
+        image,
+        settings.max_upload_mb,
+    )
 
-    Response 200: frame valid, siap untuk enrollment
-    Response 400: frame tidak valid dengan error code untuk hint UI
-    """
-    settings   = request.app.state.settings
-    detector   = getattr(request.app.state, "detector",   None)
-    recognizer = getattr(request.app.state, "recognizer", None)
+    try:
+        service = EnrollmentService(
+            request.app.state,
+            model_id=model_id,
+        )
 
-    if detector is None or recognizer is None:
+        (
+            embedding,
+            quality_score,
+            quality_status,
+            target_model_id,
+            target_version,
+        ) = service.process_template(pil_image)
+
+    except KeyError:
         raise HTTPException(
-            status_code=503,
+            status_code=404,
             detail={
-                "error": "backend_not_ready",
-                "message": "Backend belum siap. Tunggu server selesai startup.",
+                "error": "model_not_found",
+                "message": f"Model '{model_id}' tidak ditemukan.",
             },
         )
 
-    pil_image = await upload_to_pil(image, settings.max_upload_mb)
+    except ValueError as exc:
+        code = str(exc)
 
-    # ── Stage 1: Hand detection ───────────────────────────────────────────────
-    detection = detector.detect(pil_image)
-    if detection is None:
-        return {
-            "status": "error",
-            "error": "detection_failed",
-            "message": "Telapak belum terbaca. Pastikan tangan terlihat penuh dan menghadap kamera.",
+        messages = {
+            "detection_failed": "Telapak belum terbaca.",
+            "no_hand_detected": "Tunjukkan telapak tangan ke kamera.",
+            "roi_extraction_failed": "Posisikan telapak di tengah frame.",
+            "image_too_blurry": "Tahan tangan diam sebentar.",
         }
 
-    # ── Stage 2: ROI extraction ───────────────────────────────────────────────
-    roi = extract_palm_roi(pil_image, detection["landmarks"])
-    if roi is None:
         return {
             "status": "error",
-            "error": "roi_extraction_failed",
-            "message": "Area telapak gagal diekstrak. Posisikan telapak di tengah frame.",
-        }
-
-    # ── Stage 3: Embedding extraction ────────────────────────────────────────
-    # KRITIS: Harus identik dengan add_template agar tidak ada false-positive.
-    # Tanpa pengecekan ini, blob yang lolos validate bisa gagal di add_template
-    # karena gambar blur atau landmark tidak cukup jelas untuk model.
-    embedding = recognizer.extract_embedding(roi)
-    if embedding is None:
-        return {
-            "status": "error",
-            "error": "image_too_blurry",
-            "message": "Gambar terlalu blur atau tangan kurang jelas. Tahan tangan diam sebentar.",
+            "error": code,
+            "message": messages.get(
+                code,
+                "Frame tidak valid.",
+            ),
         }
 
     return {
         "valid": True,
-        "message": "Frame valid. Siap untuk enrollment.",
+        "model_id": target_model_id,
+        "model_version": target_version,
+        "quality_score": quality_score,
+        "quality_status": quality_status,
     }

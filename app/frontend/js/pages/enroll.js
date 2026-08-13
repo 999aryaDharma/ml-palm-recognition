@@ -17,15 +17,19 @@
 //   - SQLite lock dicegah dengan delay 800ms + busy_timeout 30s
 // ============================================================
 
-import { mountNavbar }               from "../components/navbar.js";
-import { WebcamCapture }             from "../components/webcam.js";
-import { ModelSelector }             from "../components/model-selector.js";
-import { createUser, addTemplate, deleteUser, verifyUserReady } from "../api/users.js";
-import { BASE_URL }                  from "../api/client.js";
-import { toast }                     from "../components/toast.js";
-import { QUALITY_HINTS, sleep }      from "../utils.js";
-import { smoothBack, withLoading }   from "../ux.js";
-
+import { mountNavbar } from "../components/navbar.js";
+import { WebcamCapture } from "../components/webcam.js";
+import { ModelSelector } from "../components/model-selector.js";
+import {
+  createUser,
+  addTemplate,
+  deleteUser,
+  verifyUserReady,
+} from "../api/users.js";
+import { BASE_URL } from "../api/client.js";
+import { toast } from "../components/toast.js";
+import { QUALITY_HINTS, sleep } from "../utils.js";
+import { smoothBack, withLoading } from "../ux.js";
 
 // ── Konfigurasi ───────────────────────────────────────────
 const MAX_SAMPLES = 5;
@@ -33,39 +37,58 @@ const MAX_SAMPLES = 5;
 /** Label verifikasi untuk step-verifying */
 const VERIFY_STEPS_CONFIG = [
   { id: "create-user", label: "Membuat profil pengguna" },
-  { id: "upload-1",    label: "Template biometrik 1/5" },
-  { id: "upload-2",    label: "Template biometrik 2/5" },
-  { id: "upload-3",    label: "Template biometrik 3/5" },
-  { id: "upload-4",    label: "Template biometrik 4/5" },
-  { id: "upload-5",    label: "Template biometrik 5/5" },
-  { id: "verify",      label: "Verifikasi kelengkapan" },
+  { id: "upload-1", label: "Template biometrik 1/5" },
+  { id: "upload-2", label: "Template biometrik 2/5" },
+  { id: "upload-3", label: "Template biometrik 3/5" },
+  { id: "upload-4", label: "Template biometrik 4/5" },
+  { id: "upload-5", label: "Template biometrik 5/5" },
+  { id: "verify", label: "Verifikasi kelengkapan" },
 ];
 
 /** Panduan pose per sampel */
 const POSE_GUIDE = [
-  { icon: "🖐",  short: "Lurus",  hint: "🔍 Tahan telapak lurus dan tegak di depan kamera" },
-  { icon: "↙",  short: "Kiri",   hint: "↙ Sampel 2: Miringkan telapak sedikit ke kiri" },
-  { icon: "↗",  short: "Kanan",  hint: "↗ Sampel 3: Miringkan telapak sedikit ke kanan" },
-  { icon: "⬆",  short: "Dekat",  hint: "⬆ Sampel 4: Majukan tangan sedikit mendekati kamera" },
-  { icon: "⬇",  short: "Jauh",   hint: "⬇ Sampel 5: Mundurkan tangan sedikit menjauhi kamera" },
+  {
+    icon: "🖐",
+    short: "Lurus",
+    hint: "🔍 Tahan telapak lurus dan tegak di depan kamera",
+  },
+  {
+    icon: "↙",
+    short: "Kiri",
+    hint: "↙ Sampel 2: Miringkan telapak sedikit ke kiri",
+  },
+  {
+    icon: "↗",
+    short: "Kanan",
+    hint: "↗ Sampel 3: Miringkan telapak sedikit ke kanan",
+  },
+  {
+    icon: "⬆",
+    short: "Dekat",
+    hint: "⬆ Sampel 4: Majukan tangan sedikit mendekati kamera",
+  },
+  {
+    icon: "⬇",
+    short: "Jauh",
+    hint: "⬇ Sampel 5: Mundurkan tangan sedikit menjauhi kamera",
+  },
 ];
 
 /** Revoke URL cache untuk thumbnail */
 const _thumbUrls = [];
 
 // ── State ─────────────────────────────────────────────────
-let webcam         = null;
-let currentUserId  = null;
+let webcam = null;
+let currentUserId = null;
 let currentUserName = "";
-let pendingName    = "";
-let sampleCount    = 0;
-let isCapturing    = false;
-let isUserCreated  = false;
-let capturedBlobs  = [];   // Array lokal: 5 blob di RAM, upload saat finalizeEnrollment()
+let pendingName = "";
+let sampleCount = 0;
+let isCapturing = false;
+let isUserCreated = false;
+let capturedBlobs = []; // Array lokal: 5 blob di RAM, upload saat finalizeEnrollment()
 let modelSelector = null;
 let selectedEnrollmentModelId = null;
 let selectedEnrollmentVersion = null;
-
 
 // ── DOM refs ──────────────────────────────────────────────
 let inputName, btnToCapture, btnCancelCapture;
@@ -83,31 +106,31 @@ async function init() {
   mountNavbar();
 
   // DOM cache
-  inputName            = document.getElementById("input-name");
-  btnToCapture         = document.getElementById("btn-to-capture");
-  btnCancelCapture     = document.getElementById("btn-cancel-capture");
-  videoEl              = document.getElementById("enroll-video");
-  scannerHint          = document.getElementById("scanner-hint");
-  scannerLoading       = document.getElementById("scanner-loading");
-  scannerLoadingLabel  = document.getElementById("scanner-loading-label");
-  scanline             = document.getElementById("scanline");
-  sampleBadge          = document.getElementById("sample-count-badge");
-  sampleDots           = document.querySelectorAll(".step-dot");
-  captureQualityHint   = document.getElementById("capture-quality-hint");
-  captureEyebrow       = document.getElementById("capture-eyebrow");
-  scannerSampleNum     = document.getElementById("scanner-sample-num");
-  poseInstructionIcon  = document.getElementById("pose-instruction-icon");
-  poseInstructionText  = document.getElementById("pose-instruction-text");
-  successName          = document.getElementById("success-name");
+  inputName = document.getElementById("input-name");
+  btnToCapture = document.getElementById("btn-to-capture");
+  btnCancelCapture = document.getElementById("btn-cancel-capture");
+  videoEl = document.getElementById("enroll-video");
+  scannerHint = document.getElementById("scanner-hint");
+  scannerLoading = document.getElementById("scanner-loading");
+  scannerLoadingLabel = document.getElementById("scanner-loading-label");
+  scanline = document.getElementById("scanline");
+  sampleBadge = document.getElementById("sample-count-badge");
+  sampleDots = document.querySelectorAll(".step-dot");
+  captureQualityHint = document.getElementById("capture-quality-hint");
+  captureEyebrow = document.getElementById("capture-eyebrow");
+  scannerSampleNum = document.getElementById("scanner-sample-num");
+  poseInstructionIcon = document.getElementById("pose-instruction-icon");
+  poseInstructionText = document.getElementById("pose-instruction-text");
+  successName = document.getElementById("success-name");
   successTemplateCount = document.getElementById("success-template-count");
-  successThumbs        = document.getElementById("success-thumbs");
+  successThumbs = document.getElementById("success-thumbs");
 
   steps = {
-    name:      document.getElementById("step-name"),
-    capture:   document.getElementById("step-capture"),
+    name: document.getElementById("step-name"),
+    capture: document.getElementById("step-capture"),
     verifying: document.getElementById("step-verifying"),
-    profile:   document.getElementById("step-profile"),
-    success:   document.getElementById("step-success"),
+    profile: document.getElementById("step-profile"),
+    success: document.getElementById("step-success"),
   };
 
   const selectorContainer = document.getElementById("navbar-model-selector");
@@ -128,7 +151,6 @@ async function init() {
     goToCaptureStep();
   });
 
-
   document.getElementById("form-profile")?.addEventListener("submit", (e) => {
     e.preventDefault();
     submitProfile();
@@ -139,15 +161,19 @@ async function init() {
     cancelEnrollment();
   });
 
-  document.getElementById("btn-success-done")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    smoothBack("index.html");
-  });
+  document
+    .getElementById("btn-success-done")
+    ?.addEventListener("click", (e) => {
+      e.preventDefault();
+      smoothBack("index.html");
+    });
 
-  document.getElementById("btn-success-enroll-another")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    restartFromName();
-  });
+  document
+    .getElementById("btn-success-enroll-another")
+    ?.addEventListener("click", (e) => {
+      e.preventDefault();
+      restartFromName();
+    });
 
   window.addEventListener("beforeunload", cleanupOnExit);
 }
@@ -193,7 +219,7 @@ async function goToCaptureStep() {
     return;
   }
 
-  pendingName     = name;
+  pendingName = name;
   currentUserName = name;
 
   await withLoading(btnToCapture, "Memproses…", async () => {
@@ -210,7 +236,9 @@ async function goToCaptureStep() {
 async function submitProfile() {
   const nik = document.getElementById("input-nik")?.value.trim();
   const kelas = document.getElementById("input-kelas")?.value.trim();
-  const balance = parseFloat(document.getElementById("input-balance")?.value || "0");
+  const balance = parseFloat(
+    document.getElementById("input-balance")?.value || "0",
+  );
   const btn = document.getElementById("btn-submit-profile");
 
   if (!nik || !kelas) {
@@ -221,10 +249,17 @@ async function submitProfile() {
   await withLoading(btn, "Menyimpan…", async () => {
     try {
       const { addProfile } = await import("../api/users.js");
-      await addProfile(currentUserId, { nik: nik, kelas_jabatan: kelas, initial_balance: balance });
+      await addProfile(currentUserId, {
+        nik: nik,
+        kelas_jabatan: kelas,
+        initial_balance: balance,
+      });
       await sleep(500);
       await showStep("success");
-      toast.success(`Enrollment berhasil untuk ${currentUserName}!`, "Selamat!");
+      toast.success(
+        `Enrollment berhasil untuk ${currentUserName}!`,
+        "Selamat!",
+      );
     } catch (err) {
       toast.error(err.message || "Gagal menyimpan data diri.");
     }
@@ -238,7 +273,6 @@ async function initWebcam() {
   modelSelector?.setDisabled(true);
   setHint("🎥 Menyalakan kamera...");
   clearQualityHint();
-
 
   try {
     webcam = new WebcamCapture(videoEl, {
@@ -282,9 +316,16 @@ async function handleCapture(blob) {
     const form = new FormData();
     form.append("image", blob, "frame.jpg");
 
+    if (selectedEnrollmentModelId) {
+      form.append("model_id", selectedEnrollmentModelId);
+    }
+
     try {
       const { apiFetch } = await import("../api/client.js");
-      const result = await apiFetch("/validate-frame", { method: "POST", body: form });
+      const result = await apiFetch("/validate-frame", {
+        method: "POST",
+        body: form,
+      });
       if (result.status === "error") {
         throw { detail: result };
       }
@@ -293,7 +334,8 @@ async function handleCapture(blob) {
       scannerLoading?.classList.add("hidden");
       clearSlotActive(idx);
 
-      const hint = QUALITY_HINTS[valErr.error] || "🖐 Arahkan telapak tangan ke kamera";
+      const hint =
+        QUALITY_HINTS[valErr.error] || "🖐 Arahkan telapak tangan ke kamera";
       setHint(hint);
       showQualityHint(hint);
       return; // isCapturing akan direset di finally
@@ -331,8 +373,10 @@ async function handleCapture(blob) {
       // Arahkan ke slot kosong berikutnya
       const nextEmpty = findFirstEmptySlot();
       updatePoseGuide(nextEmpty < MAX_SAMPLES ? nextEmpty : sampleCount);
-      setHint(POSE_GUIDE[nextEmpty < MAX_SAMPLES ? nextEmpty : sampleCount]?.hint
-        || "🖐 Siap untuk sampel berikutnya...");
+      setHint(
+        POSE_GUIDE[nextEmpty < MAX_SAMPLES ? nextEmpty : sampleCount]?.hint ||
+          "🖐 Siap untuk sampel berikutnya...",
+      );
       await sleep(1300);
     }
   } finally {
@@ -374,7 +418,7 @@ async function finalizeEnrollment() {
   try {
     // ── 1. Buat user di database ──────────────────────────
     setVerifyStep("create-user", "active");
-    
+
     if (!isUserCreated) {
       setVerifyMsg("Membuat profil pengguna di server...");
       let newUser;
@@ -382,7 +426,7 @@ async function finalizeEnrollment() {
         newUser = await createUser(pendingName);
       } catch (createErr) {
         setVerifyStep("create-user", "error", "Gagal membuat profil");
-  
+
         if (createErr.status === 409 || createErr.error === "user_exists") {
           return showRecoveryPrompt({
             title: "Nama sudah terdaftar",
@@ -398,10 +442,10 @@ async function finalizeEnrollment() {
         }
         throw new Error("Gagal membuat profil pengguna di server.");
       }
-      currentUserId  = newUser.id;
-      isUserCreated  = true;
+      currentUserId = newUser.id;
+      isUserCreated = true;
     }
-    
+
     setVerifyStep("create-user", "done", "Profil pengguna siap ✓");
     advance();
 
@@ -419,13 +463,17 @@ async function finalizeEnrollment() {
       // Beri waktu SQLite commit transaction sebelumnya
       await sleep(800);
 
-      let lastErr  = null;
-      let ok       = false;
+      let lastErr = null;
+      let ok = false;
       let isMLFail = false;
 
       for (let attempt = 1; attempt <= 3 && !ok && !isMLFail; attempt++) {
         try {
-          await addTemplate(currentUserId, capturedBlobs[i], selectedEnrollmentModelId);
+          await addTemplate(
+            currentUserId,
+            capturedBlobs[i],
+            selectedEnrollmentModelId,
+          );
           ok = true;
         } catch (uploadErr) {
           lastErr = uploadErr;
@@ -449,16 +497,20 @@ async function finalizeEnrollment() {
         setVerifyStep(
           stepId,
           "error",
-          `Template ${i + 1}/5 — kualitas gambar kurang (akan di-scan ulang)`
+          `Template ${i + 1}/5 — kualitas gambar kurang (akan di-scan ulang)`,
         );
         // Jangan throw — lanjut ke blob berikutnya
       } else {
         // Network/DB error fatal setelah 3× retry
-        setVerifyStep(stepId, "error", `Template ${i + 1}/5 — koneksi bermasalah`);
+        setVerifyStep(
+          stepId,
+          "error",
+          `Template ${i + 1}/5 — koneksi bermasalah`,
+        );
         throw new Error(
           `Upload template ${i + 1} gagal setelah 3 percobaan: ${
             lastErr?.message || "Koneksi terputus"
-          }.`
+          }.`,
         );
       }
     }
@@ -468,11 +520,11 @@ async function finalizeEnrollment() {
       // Kita sudah punya sebagian template di DB.
       // Minta user scan ulang hanya slot yang gagal.
       setVerifyMsg(
-        `⚠️ ${uploadedCount}/5 template tersimpan. Perlu scan ulang ${failedSlots.length} sampel.`
+        `⚠️ ${uploadedCount}/5 template tersimpan. Perlu scan ulang ${failedSlots.length} sampel.`,
       );
       toast.warning(
         `${failedSlots.length} sampel kurang jelas. Sistem akan membuka kamera untuk scan ulang.`,
-        "Kualitas Gambar"
+        "Kualitas Gambar",
       );
 
       // Set blob yang gagal ke null (jangan di-splice agar index tidak bergeser)
@@ -502,7 +554,9 @@ async function finalizeEnrollment() {
       // Set hint sesuai dengan sampel berikutnya yang perlu di-capture
       const nextSlot = failedSlots[0];
       updatePoseGuide(nextSlot);
-      setHint(`🔄 Scan ulang sampel ${nextSlot + 1}: ${POSE_GUIDE[nextSlot]?.hint || ""}`);
+      setHint(
+        `🔄 Scan ulang sampel ${nextSlot + 1}: ${POSE_GUIDE[nextSlot]?.hint || ""}`,
+      );
       return; // Tunggu user scan lagi; finalizeEnrollment akan dipanggil ulang saat 5 blob terkumpul
     }
 
@@ -511,16 +565,24 @@ async function finalizeEnrollment() {
     setVerifyMsg("Memverifikasi kelengkapan template di database...");
     await sleep(800);
 
-    const readyCheck = await verifyUserReady(currentUserId, selectedEnrollmentModelId, selectedEnrollmentVersion);
+    const readyCheck = await verifyUserReady(
+      currentUserId,
+      selectedEnrollmentModelId,
+      selectedEnrollmentVersion,
+    );
 
     if (!readyCheck.ready || readyCheck.template_count < 5) {
       setVerifyStep("verify", "error");
       throw new Error(
-        `Hanya ${readyCheck.template_count}/5 template yang tersimpan. Coba ulangi enrollment.`
+        `Hanya ${readyCheck.template_count}/5 template yang tersimpan. Coba ulangi enrollment.`,
       );
     }
 
-    setVerifyStep("verify", "done", `${readyCheck.template_count}/5 template terverifikasi ✓`);
+    setVerifyStep(
+      "verify",
+      "done",
+      `${readyCheck.template_count}/5 template terverifikasi ✓`,
+    );
     advance();
     setVerifyProgress(totalSteps, totalSteps);
     setVerifyMsg("✅ Template tersimpan. Lanjut isi data diri.");
@@ -531,7 +593,6 @@ async function finalizeEnrollment() {
 
     await sleep(500);
     await showStep("profile");
-
   } catch (error) {
     setVerifyMsg(`❌ ${error.message}`);
     toast.error(error.message, "Enrollment Gagal");
@@ -578,12 +639,12 @@ function renderSampleThumbnail(blob, index) {
   slot.innerHTML = "";
 
   const img = document.createElement("img");
-  img.src       = url;
-  img.alt       = `Sampel ${index + 1}`;
+  img.src = url;
+  img.alt = `Sampel ${index + 1}`;
   img.className = "sample-slot__img";
 
   const check = document.createElement("div");
-  check.className   = "sample-slot__check";
+  check.className = "sample-slot__check";
   check.textContent = "✓";
   check.setAttribute("aria-label", `Sampel ${index + 1} berhasil`);
 
@@ -594,8 +655,9 @@ function renderSampleThumbnail(blob, index) {
 
 /** Render 5 thumbnail di success screen */
 function buildSuccessScreen(templateCount) {
-  if (successName)          successName.textContent = currentUserName;
-  if (successTemplateCount) successTemplateCount.textContent = `${templateCount} template tersimpan`;
+  if (successName) successName.textContent = currentUserName;
+  if (successTemplateCount)
+    successTemplateCount.textContent = `${templateCount} template tersimpan`;
 
   if (successThumbs) {
     successThumbs.innerHTML = "";
@@ -624,17 +686,19 @@ function updatePoseGuide(nextIndex) {
   const poseItems = document.querySelectorAll(".pose-item");
   poseItems.forEach((item, i) => {
     item.classList.remove("pose-item--active", "pose-item--done");
-    if (i < nextIndex)       item.classList.add("pose-item--done");
+    if (i < nextIndex) item.classList.add("pose-item--done");
     else if (i === nextIndex) item.classList.add("pose-item--active");
   });
 
   // Update instruction card bawah panel
   const pose = POSE_GUIDE[nextIndex] || POSE_GUIDE[MAX_SAMPLES - 1];
   if (poseInstructionIcon) poseInstructionIcon.textContent = pose.icon;
-  if (poseInstructionText) poseInstructionText.textContent = pose.hint.replace(/^.{1,3}\s/, "");
+  if (poseInstructionText)
+    poseInstructionText.textContent = pose.hint.replace(/^.{1,3}\s/, "");
 
   // Update eyebrow heading
-  if (captureEyebrow) captureEyebrow.textContent = `STAGE 2 — SAMPLE ${nextIndex + 1} / 5`;
+  if (captureEyebrow)
+    captureEyebrow.textContent = `STAGE 2 — SAMPLE ${nextIndex + 1} / 5`;
   if (scannerSampleNum) scannerSampleNum.textContent = String(nextIndex + 1);
 }
 
@@ -650,27 +714,39 @@ function findFirstEmptySlot() {
 
 /** Mark slot sebagai sedang diproses (pulse animation) */
 function setSlotActive(index) {
-  document.getElementById(`sample-slot-${index}`)?.classList.add("sample-slot--active-slot");
+  document
+    .getElementById(`sample-slot-${index}`)
+    ?.classList.add("sample-slot--active-slot");
 }
 
 /** Hapus state active dari slot */
 function clearSlotActive(index) {
-  document.getElementById(`sample-slot-${index}`)?.classList.remove("sample-slot--active-slot");
+  document
+    .getElementById(`sample-slot-${index}`)
+    ?.classList.remove("sample-slot--active-slot");
 }
 
 // ─────────────────────────────────────────────────────────
 // RECOVERY PROMPT (inline di step-verifying)
 // ─────────────────────────────────────────────────────────
-function showRecoveryPrompt({ title, message, actionLabel, onAction, secondaryLabel, onSecondary }) {
-  const container = document.getElementById("verify-steps-list")?.parentElement
-    || steps.verifying;
+function showRecoveryPrompt({
+  title,
+  message,
+  actionLabel,
+  onAction,
+  secondaryLabel,
+  onSecondary,
+}) {
+  const container =
+    document.getElementById("verify-steps-list")?.parentElement ||
+    steps.verifying;
   if (!container) return;
 
   const promptId = "enroll-recovery-prompt";
   document.getElementById(promptId)?.remove();
 
   const node = document.createElement("div");
-  node.id        = promptId;
+  node.id = promptId;
   node.className = "ux-anim-fade-in";
   node.style.cssText =
     "margin-top:var(--space-5);padding:var(--space-5);border:1px solid var(--color-border);" +
@@ -683,19 +759,25 @@ function showRecoveryPrompt({ title, message, actionLabel, onAction, secondaryLa
     </p>
     <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
       <button type="button" class="btn btn--primary btn--sm" data-act="primary">${escapeHtml(actionLabel)}</button>
-      ${secondaryLabel
-        ? `<button type="button" class="btn btn--secondary btn--sm" data-act="secondary">${escapeHtml(secondaryLabel)}</button>`
-        : ""}
+      ${
+        secondaryLabel
+          ? `<button type="button" class="btn btn--secondary btn--sm" data-act="secondary">${escapeHtml(secondaryLabel)}</button>`
+          : ""
+      }
     </div>
   `;
   container.appendChild(node);
 
   node.querySelector('[data-act="primary"]')?.addEventListener("click", () => {
-    node.remove(); onAction?.();
+    node.remove();
+    onAction?.();
   });
-  node.querySelector('[data-act="secondary"]')?.addEventListener("click", () => {
-    node.remove(); onSecondary?.();
-  });
+  node
+    .querySelector('[data-act="secondary"]')
+    ?.addEventListener("click", () => {
+      node.remove();
+      onSecondary?.();
+    });
 }
 
 // ─────────────────────────────────────────────────────────
@@ -704,12 +786,14 @@ function showRecoveryPrompt({ title, message, actionLabel, onAction, secondaryLa
 function initVerifyUI() {
   const list = document.getElementById("verify-steps-list");
   if (!list) return;
-  list.innerHTML = VERIFY_STEPS_CONFIG.map((s) => `
+  list.innerHTML = VERIFY_STEPS_CONFIG.map(
+    (s) => `
     <div class="vstep vstep--pending" id="vstep-${s.id}" role="listitem">
       <div class="vstep__indicator" aria-hidden="true">–</div>
       <span class="vstep__label">${s.label}</span>
     </div>
-  `).join("");
+  `,
+  ).join("");
   setVerifyProgress(0, VERIFY_STEPS_CONFIG.length);
   setVerifyMsg("Mempersiapkan proses enrollment...");
 }
@@ -722,23 +806,24 @@ function setVerifyStep(stepId, state, overrideLabel) {
   if (indicator) {
     if (state === "active")
       indicator.innerHTML = '<div class="spinner spinner--sm"></div>';
-    else if (state === "done")  indicator.textContent = "✓";
+    else if (state === "done") indicator.textContent = "✓";
     else if (state === "error") indicator.textContent = "✕";
-    else                        indicator.textContent = "–";
+    else indicator.textContent = "–";
   }
   if (overrideLabel) {
     const label = el.querySelector(".vstep__label");
     if (label) label.textContent = overrideLabel;
   }
-  if (state === "active") el.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+  if (state === "active")
+    el.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
 }
 
 function setVerifyProgress(done, total) {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-  const fill  = document.getElementById("verify-progress-fill");
+  const fill = document.getElementById("verify-progress-fill");
   const label = document.getElementById("verify-pct");
-  if (fill)  fill.style.width    = `${pct}%`;
-  if (label) label.textContent   = `${pct}%`;
+  if (fill) fill.style.width = `${pct}%`;
+  if (label) label.textContent = `${pct}%`;
 }
 
 function setVerifyMsg(msg) {
@@ -752,14 +837,17 @@ function setVerifyMsg(msg) {
 
 /** Reset semua UI capture ke state awal */
 function resetCaptureUI() {
-  sampleCount  = 0;
+  sampleCount = 0;
   capturedBlobs = new Array(MAX_SAMPLES).fill(null);
 
   // Reset thumbnail slots
   for (let i = 0; i < MAX_SAMPLES; i++) {
     const slot = document.getElementById(`sample-slot-${i}`);
     if (slot) {
-      slot.classList.remove("sample-slot--captured", "sample-slot--active-slot");
+      slot.classList.remove(
+        "sample-slot--captured",
+        "sample-slot--active-slot",
+      );
       slot.innerHTML = `
         <div class="sample-slot__number">${i + 1}</div>
         <div class="sample-slot__icon">${POSE_GUIDE[i].icon}</div>
@@ -776,13 +864,17 @@ function resetCaptureUI() {
 
   // Reset instruction card
   if (poseInstructionIcon) poseInstructionIcon.textContent = POSE_GUIDE[0].icon;
-  if (poseInstructionText) poseInstructionText.textContent = POSE_GUIDE[0].hint.replace(/^.{1,3}\s/, "");
+  if (poseInstructionText)
+    poseInstructionText.textContent = POSE_GUIDE[0].hint.replace(
+      /^.{1,3}\s/,
+      "",
+    );
 
   // Reset dots & badge
   updateCaptureProgressUI();
 
   // Reset header
-  if (captureEyebrow)   captureEyebrow.textContent  = "STAGE 2 — SAMPLE 1 / 5";
+  if (captureEyebrow) captureEyebrow.textContent = "STAGE 2 — SAMPLE 1 / 5";
   if (scannerSampleNum) scannerSampleNum.textContent = "1";
 
   clearQualityHint();
@@ -801,7 +893,8 @@ function updateCaptureProgress() {
 function updateCaptureProgressUI() {
   if (sampleBadge) {
     sampleBadge.textContent = `${sampleCount} / ${MAX_SAMPLES}`;
-    sampleBadge.className   = "badge " +
+    sampleBadge.className =
+      "badge " +
       (sampleCount >= MAX_SAMPLES ? "badge--identified" : "badge--scanning");
   }
 
@@ -811,7 +904,7 @@ function updateCaptureProgressUI() {
 
   sampleDots.forEach((dot, idx) => {
     dot.classList.remove("active", "completed");
-    if (idx < sampleCount)    dot.classList.add("completed");
+    if (idx < sampleCount) dot.classList.add("completed");
     else if (idx === sampleCount) dot.classList.add("active");
   });
 }
@@ -839,19 +932,19 @@ function clearQualityHint() {
 // ─────────────────────────────────────────────────────────
 function resetLocalState() {
   modelSelector?.setDisabled(false);
-  capturedBlobs  = new Array(MAX_SAMPLES).fill(null);
+  capturedBlobs = new Array(MAX_SAMPLES).fill(null);
 
-  sampleCount    = 0;
-  currentUserId  = null;
-  isUserCreated  = false;
-  isCapturing    = false;
+  sampleCount = 0;
+  currentUserId = null;
+  isUserCreated = false;
+  isCapturing = false;
   revokeThumbs();
 }
 
 async function restartFromName() {
   webcam?.stop();
   resetLocalState();
-  pendingName     = "";
+  pendingName = "";
   currentUserName = "";
   if (inputName) inputName.value = "";
   await showStep("name");
@@ -889,7 +982,14 @@ function cleanupOnExit() {
 function escapeHtml(s) {
   return String(s).replace(
     /[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c]
+    (c) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      })[c],
   );
 }
 

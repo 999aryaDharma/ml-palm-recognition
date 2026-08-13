@@ -640,7 +640,26 @@ def test_mobilefacenet_registry_load_if_artifact_present():
         print("  [SKIP] mobilefacenet-pretrained artifact not present")
 
 
+def test_compare_checkpoints_validation_only():
+    """compare_checkpoints runs on val.csv without touching test.csv and outputs valid metrics."""
+    from scripts.compare_palmnet_checkpoints import compare_checkpoints
+
+    run_id = "20260813-132816-seed42"
+    ckpt_dir = resolve_ml_path(f"checkpoints/palmnet-lite-scratch/{run_id}")
+    if not ckpt_dir.exists():
+        print(f"  [SKIP] Checkpoint directory {ckpt_dir} does not exist")
+        return
+
+    res = compare_checkpoints(run_id=run_id)
+    assert "recommended_checkpoint" in res
+    assert res["recommended_checkpoint"] in ["phase1_best", "phase2_best", "phase2_last"]
+    assert res["evaluation_split"] == "validation"
+    assert "test.csv" not in res["val_csv"]
+    print("  [PASS] test_compare_checkpoints_validation_only")
+
+
 def run_all_tests():
+
     tests = [
         ("Config: real YAML builds model", test_real_yaml_builds_model),
         ("Config: paths resolve independent of CWD", test_config_paths_resolve_independent_of_cwd),
@@ -669,7 +688,9 @@ def run_all_tests():
         ("Registry: PIL embedding contract", test_registry_pil_embedding_contract),
         ("Cache: separates embedding spaces", test_cache_separates_embedding_spaces),
         ("Registry: mobilefacenet load", test_mobilefacenet_registry_load_if_artifact_present),
+        ("Evaluation: compare checkpoints validation-only", test_compare_checkpoints_validation_only),
     ]
+
 
 
     import tempfile

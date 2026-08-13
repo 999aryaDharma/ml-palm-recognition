@@ -1,0 +1,40 @@
+{
+  "model_id": "palmnet-lite-scratch",
+  "name": "PalmNet-Lite (Scratch)",
+  "version": "1.0.0",
+  "architecture": "PalmNetLite",
+  "architecture_version": "v1",
+  "training_mode": "scratch",
+  "deployable": false,
+  "input_shape": [
+    3,
+    112,
+    112
+  ],
+  "output_dim": 128,
+  "normalization": {
+    "mean": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "std": [
+      0.5,
+      0.5,
+      0.5
+    ]
+  },
+  "output_normalized": true,
+  "parameter_count": 393472,
+  "model_size_mb": 1.801,
+  "exported_at": "2026-08-13T15:29:22.166900",
+  "export_verification": {
+    "output_shape": [
+      1,
+      128
+    ],
+    "is_finite": true,
+    "l2_norm": 1.0,
+    "eager_vs_scripted_max_diff": 0.0
+  }
+}

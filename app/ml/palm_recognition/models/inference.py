@@ -25,7 +25,7 @@ class PalmNetLiteInferenceWrapper(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         emb = self.backbone(x)
-        return F.normalize(emb, p=2, dim=1)
+        return F.normalize(emb, p=2.0, dim=1)
 
 
 def load_inference_model(

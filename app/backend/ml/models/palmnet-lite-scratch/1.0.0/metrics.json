@@ -1,0 +1,22 @@
+{
+  "num_classes": 200,
+  "num_enroll_images": 2000,
+  "num_query_images": 2000,
+  "num_genuine_pairs": 2000,
+  "num_impostor_pairs": 398000,
+  "rank1_accuracy": 0.9585,
+  "roc_auc": 0.9991242449748744,
+  "mean_genuine_score": 0.6760490536689758,
+  "std_genuine_score": 0.14165619015693665,
+  "mean_impostor_score": 0.008835067972540855,
+  "std_impostor_score": 0.13505572080612183,
+  "cosine_gap": 0.6672139763832092,
+  "tar_at_far_0.001": 0.9285,
+  "tar_at_far_0.0001": 0.8515,
+  "diagnostic_test_eer": 0.016005025125628146,
+  "diagnostic_test_eer_threshold": 0.3070725202560425,
+  "calibrated_validation_threshold": 0.37756532430648804,
+  "far_at_calibrated_threshold": 0.004253768844221105,
+  "frr_at_calibrated_threshold": 0.0325,
+  "tar_at_calibrated_threshold": 0.9675
+}

@@ -51,7 +51,11 @@ class EnrollmentService:
             raise ValueError("no_hand_detected")
 
         from ml.roi import extract_palm_roi
-        palm_roi = extract_palm_roi(image, detection_result)
+        landmarks = detection_result.get("landmarks")
+        if not landmarks:
+            raise ValueError("roi_extraction_failed")
+
+        palm_roi = extract_palm_roi(image, landmarks)
         if palm_roi is None:
             raise ValueError("roi_extraction_failed")
 

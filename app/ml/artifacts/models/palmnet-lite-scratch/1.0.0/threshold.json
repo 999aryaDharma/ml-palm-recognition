@@ -1,0 +1,13 @@
+{
+  "model_id": "palmnet-lite-scratch",
+  "version": "1.0.0",
+  "metric": "cosine_similarity",
+  "threshold": 0.37756532430648804,
+  "calibration_split": "validation",
+  "selection": "eer",
+  "eer": 0.0035740740740740785,
+  "mean_genuine": 0.8575301731673793,
+  "mean_impostor": 0.005333003668959632,
+  "n_genuine_pairs": 18000,
+  "n_impostor_pairs": 54000
+}
