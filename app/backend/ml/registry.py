@@ -142,8 +142,9 @@ class ModelRegistry:
                 runtime = self._try_load(model_id, version, version_dir)
                 if runtime:
                     self._registry[model_id] = runtime
-                    print(f"[ModelRegistry] ✓ Loaded model: '{model_id}' v{version} "
+                    print(f"[ModelRegistry] [OK] Loaded model: '{model_id}' v{version} "
                           f"(threshold={runtime.threshold:.4f})")
+
                     break  # Use highest valid version
 
         return len(self._registry)
